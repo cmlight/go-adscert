@@ -21,12 +21,9 @@ func (k *generic32ByteKey) InternalCopyInto(dest []byte) {
 }
 
 type localAdsCertCrypto struct {
-	secureRandom                            io.Reader
-	keyPairGenerator                        *localKeyPairGenerator
-	sharedSecretCalculator                  *localSharedSecretCalculator
-	authenticatedConnectionsSigner          *localAuthenticatedConnectionsSigner
-	authenticatedConnectionsSignatureParser *localAuthenticatedConnectionsSignatureParser
-	authenticatedConnectionsVerifier        *localAuthenticatedConnectionsVerifier
+	secureRandom           io.Reader
+	keyPairGenerator       *localKeyPairGenerator
+	sharedSecretCalculator *localSharedSecretCalculator
 }
 
 // NewAdsCertCryptoInternal provides an AdsCertCrypto implementation that
@@ -36,9 +33,6 @@ func NewAdsCertCryptoInternal(secureRandom io.Reader) adscertcrypto.AdsCertCrypt
 	result := &localAdsCertCrypto{secureRandom: secureRandom}
 	result.keyPairGenerator = &localKeyPairGenerator{parent: result}
 	result.sharedSecretCalculator = &localSharedSecretCalculator{}
-	result.authenticatedConnectionsSigner = &localAuthenticatedConnectionsSigner{}
-	result.authenticatedConnectionsSignatureParser = &localAuthenticatedConnectionsSignatureParser{}
-	result.authenticatedConnectionsVerifier = &localAuthenticatedConnectionsVerifier{}
 	return result
 }
 
@@ -48,18 +42,6 @@ func (c *localAdsCertCrypto) KeyPairGenerator() adscertcrypto.KeyPairGenerator {
 
 func (c *localAdsCertCrypto) SharedSecretCalculator() adscertcrypto.SharedSecretCalculator {
 	return c.sharedSecretCalculator
-}
-
-func (c *localAdsCertCrypto) AuthenticatedConnectionsSigner() adscertcrypto.AuthenticatedConnectionsSigner {
-	return c.authenticatedConnectionsSigner
-}
-
-func (c *localAdsCertCrypto) AuthenticatedConnectionsSignatureParser() adscertcrypto.AuthenticatedConnectionsSignatureParser {
-	return c.authenticatedConnectionsSignatureParser
-}
-
-func (c *localAdsCertCrypto) AuthenticatedConnectionsVerifier() adscertcrypto.AuthenticatedConnectionsVerifier {
-	return c.authenticatedConnectionsVerifier
 }
 
 type localKeyPairGenerator struct {
@@ -106,29 +88,4 @@ func (c *localSharedSecretCalculator) CalculateSharedSecret(publicKey adscertcry
 	result := &generic32ByteKey{}
 	copy(result.keyMaterial[:], sharedValue)
 	return result, nil
-}
-
-type localAuthenticatedConnectionsSigner struct{}
-
-func (c *localAuthenticatedConnectionsSigner) SignAuthenticatedConnection(counterparty adscertcrypto.Counterparty, destinationURL string, body []byte) (adscertcrypto.AuthenticatedConnectionSignature, error) {
-	// TODO: implement this.
-	return nil, nil
-}
-
-type localAuthenticatedConnectionsSignatureParser struct{}
-
-func (c *localAuthenticatedConnectionsSignatureParser) ParseAuthenticatedConnectionSignature(urlEncodedSignatureText string) adscertcrypto.AuthenticatedConnectionSignature {
-	// TODO: implement this.
-	return nil
-}
-
-type localAuthenticatedConnectionsVerifier struct{}
-
-func (c *localAuthenticatedConnectionsVerifier) VerifyAuthenticatedConnection(
-	counterparty adscertcrypto.Counterparty,
-	destinationURL string,
-	body []byte,
-	signature adscertcrypto.AuthenticatedConnectionSignature) (adscertcrypto.AuthenticatedConnectionVerification, error) {
-	// TODO: implement this.
-	return nil, nil
 }
