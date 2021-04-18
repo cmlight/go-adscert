@@ -8,10 +8,6 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-func NewAuthenticatedConnectionsSigner(adscertcrypto adscertcrypto.AdsCertCrypto) AuthenticatedConnectionsSigner {
-	return &authenticatedConnectionsSigner{}
-}
-
 type authenticatedConnectionsSigner struct {
 	adscertcrypto adscertcrypto.AdsCertCrypto
 }
