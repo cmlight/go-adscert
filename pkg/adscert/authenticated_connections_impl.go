@@ -2,15 +2,16 @@ package adscert
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"net/url"
 
-	"github.com/golang/glog"
+	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
+	"golang.org/x/net/publicsuffix"
 )
 
 type authenticatedConnectionsManager struct {
 	authenticatedConnectionsSigner   *authenticatedConnectionsSigner
 	authenticatedConnectionsVerifier *authenticatedConnectionsVerifier
+	adscertcrypto                    adscertcrypto.AdsCertCrypto
 }
 
 func (c *authenticatedConnectionsManager) AuthenticatedConnectionsSigner() AuthenticatedConnectionsSigner {
@@ -33,26 +34,31 @@ func NewAuthenticatedConnectionsManager() AuthenticatedConnectionsManager {
 type authenticatedConnectionsSigner struct{}
 
 func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(destinationURL string, body []byte) (AuthenticatedConnectionSignature, error) {
-	// TODO: implement this.
-
+	signatureRequest := adscertcrypto.AuthenticatedConnectionSignatureRequest{}
 	// baseParams := origin,origink,dest,destk,ts,nonce
-	// bodyMAC := baseParams[,bodyHash]
 	// urlMAC := baseParams[,urlHash]
+	// bodyMAC := baseParams[,bodyHash]
 
-	// hash body
-	bodyHash := sha256.Sum256(body)
-	glog.Infof("body hash is %s", base64.RawURLEncoding.EncodeToString(bodyHash[:]))
+	// Hash body
+	signatureRequest.BodyHash = sha256.Sum256(body)
 
+	// Parse out destination host registerable domain and hash URL
+	c.parseURLIntoSignatureRequest(destinationURL, &signatureRequest)
+
+	return &authenticatedConnectionSignature{signatureMessage: "foo"}, nil
+}
+
+func (c *authenticatedConnectionsSigner) parseURLIntoSignatureRequest(destinationURL string, signatureRequest *adscertcrypto.AuthenticatedConnectionSignatureRequest) {
 	parsedDestURL, err := url.Parse(destinationURL)
 	if err != nil {
 		// Counter for URL parse failures
 		// use error code for URL MAC
 	} else {
-		urlHash := sha256.Sum256([]byte(parsedDestURL.String()))
-		glog.Infof("URL hash is %s", base64.RawURLEncoding.EncodeToString(urlHash[:]))
+		signatureRequest.InvocationHostname = parsedDestURL.Hostname()
+		publicsuffix.EffectiveTLDPlusOne(parsedDestURL.Hostname())
+		signatureRequest.URLHash = sha256.Sum256([]byte(parsedDestURL.String()))
 	}
 
-	return &authenticatedConnectionSignature{signatureMessage: "foo"}, nil
 }
 
 type authenticatedConnectionsVerifier struct{}

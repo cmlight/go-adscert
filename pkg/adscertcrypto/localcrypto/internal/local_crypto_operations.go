@@ -6,7 +6,6 @@ import (
 
 	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
 	"golang.org/x/crypto/curve25519"
-	"golang.org/x/crypto/nacl/box"
 )
 
 type generic32ByteKey struct {
@@ -51,24 +50,16 @@ type localKeyPairGenerator struct {
 // GenerateNewKeyPair safely creates a new key pair from the platform's
 // cryptographically secure random number generator.
 func (c *localKeyPairGenerator) GenerateNewKeyPair() (adscertcrypto.AdsCertPublicKey, adscertcrypto.AdsCertPrivateKey, error) {
-	pub, prv, err := box.GenerateKey(c.parent.secureRandom)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error generating key pair: %v", err)
-	}
-
-	if len(pub) != 32 || len(prv) != 32 {
-		return nil, nil, fmt.Errorf("expected to receive 32 byte keys, but sizes were %d and %d bytes", len(pub), len(prv))
-	}
-
-	publicKey := &generic32ByteKey{}
-	if n := copy(publicKey.keyMaterial[:], pub[:]); n != 32 {
-		return nil, nil, fmt.Errorf("expected to copy 32 byte public key, but copied %d bytes", n)
-	}
-
 	privateKey := &generic32ByteKey{}
-	if n := copy(privateKey.keyMaterial[:], prv[:]); n != 32 {
-		return nil, nil, fmt.Errorf("expected to copy 32 byte private key, but copied %d bytes", n)
+	publicKey := &generic32ByteKey{}
+	n, err := io.ReadFull(c.parent.secureRandom, privateKey.keyMaterial[:])
+	if err != nil {
+		return nil, nil, err
 	}
+	if n != 32 {
+		return nil, nil, fmt.Errorf("expected to generate 32 random values for key, was %d", n)
+	}
+	curve25519.ScalarBaseMult(&publicKey.keyMaterial, &privateKey.keyMaterial)
 
 	return publicKey, privateKey, nil
 }
