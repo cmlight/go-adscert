@@ -24,7 +24,7 @@ func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params Sign
 	// Parse out destination host registerable domain and hash URL
 	c.parseURLIntoSignatureRequest(params.DestinationURL, &signatureRequest)
 
-	return AuthenticatedConnectionSignature{SignatureMessage: "foo"}, nil
+	return AuthenticatedConnectionSignature{SignatureMessage: []string{"foo"}}, nil
 }
 
 func (c *authenticatedConnectionsSigner) parseURLIntoSignatureRequest(destinationURL string, signatureRequest *adscertcrypto.AuthenticatedConnectionSignatureRequest) {

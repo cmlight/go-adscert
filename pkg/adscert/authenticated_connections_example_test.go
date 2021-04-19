@@ -28,6 +28,6 @@ func Example() {
 	}
 
 	fmt.Print("Signature passed via X-Ads-Cert-Auth: ", signature.SignatureMessage)
-	// Output: Signature passed via X-Ads-Cert-Auth: foo
+	// Output: Signature passed via X-Ads-Cert-Auth: [foo]
 
 }

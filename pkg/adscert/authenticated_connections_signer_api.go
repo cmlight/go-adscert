@@ -22,7 +22,9 @@ type SignAuthenticatedConnectionParams struct {
 }
 
 // AuthenticatedConnectionSignature represents a signature conforming to the
-// ads.cert Authenticated Connections specification.
+// ads.cert Authenticated Connections specification. Multiple signatures may be
+// present for integrations that utilize a third-party verification service or
+// similar multiparty integration.
 type AuthenticatedConnectionSignature struct {
-	SignatureMessage string
+	SignatureMessage []string
 }
