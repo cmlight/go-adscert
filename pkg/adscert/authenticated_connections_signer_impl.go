@@ -13,7 +13,7 @@ type authenticatedConnectionsSigner struct {
 }
 
 func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params SignAuthenticatedConnectionParams) (AuthenticatedConnectionSignature, error) {
-	signatureRequest := adscertcrypto.AuthenticatedConnectionSignatureRequest{}
+	signatureRequest := adscertcrypto.AuthenticatedConnectionSigningPackage{}
 	// baseParams := origin,origink,dest,destk,ts,nonce
 	// urlMAC := baseParams[,urlHash]
 	// bodyMAC := baseParams[,bodyHash]
@@ -27,7 +27,7 @@ func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params Sign
 	return AuthenticatedConnectionSignature{SignatureMessage: []string{"foo"}}, nil
 }
 
-func (c *authenticatedConnectionsSigner) parseURLIntoSignatureRequest(destinationURL string, signatureRequest *adscertcrypto.AuthenticatedConnectionSignatureRequest) {
+func (c *authenticatedConnectionsSigner) parseURLIntoSignatureRequest(destinationURL string, signatureRequest *adscertcrypto.AuthenticatedConnectionSigningPackage) {
 	parsedDestURL, err := url.Parse(destinationURL)
 	if err != nil {
 		// Counter for URL parse failures

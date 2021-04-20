@@ -41,6 +41,11 @@ type SharedSecretCalculator interface {
 type Counterparty interface {
 	GetAdsCertIdentityDomain() string
 	// TODO: enumeration of counterparty capabilities
+
+	// TODO: change this
+	SharedSecret() *[32]byte
+
+	KeyID() string
 }
 
 // AdsCertPublicKey provides an opaque, fluent interface around a public key
