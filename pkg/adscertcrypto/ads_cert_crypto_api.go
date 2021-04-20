@@ -42,10 +42,13 @@ type Counterparty interface {
 	GetAdsCertIdentityDomain() string
 	// TODO: enumeration of counterparty capabilities
 
+	HasSharedSecret() bool
 	// TODO: change this
 	SharedSecret() *[32]byte
 
 	KeyID() string
+
+	Status() string
 }
 
 // AdsCertPublicKey provides an opaque, fluent interface around a public key

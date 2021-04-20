@@ -21,7 +21,7 @@ type localAuthenticatedConnectionsSignatory struct {
 func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *AuthenticatedConnectionSigningPackage) (*AuthenticatedConnectionSignatureResponse, error) {
 	// Note: this is basically going to be the same process for signing and verifying except the lookup method.
 	response := &AuthenticatedConnectionSignatureResponse{}
-	
+
 	// Look up my ads.cert info.
 
 	// Look up invocation hostname's counterparties
@@ -54,19 +54,27 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 
 	// Assemble final unsigned message
 	values := url.Values{}
+	values.Add("status", counterparty.Status())
 	values.Add("invoking", request.InvocationHostname)
 	values.Add("from", s.originCallsign)
 	values.Add("from_key", s.originKeyID)
-	values.Add("to", counterparty.GetAdsCertIdentityDomain())
-	values.Add("to_key", counterparty.KeyID())
-	values.Add("url_mac", b64truncate(urlHMAC))
-	values.Add("body_mac", b64truncate(bodyHMAC))
-	unsignedMessage := values.Encode()
 
-	finalHMAC := h.Sum([]byte(unsignedMessage))
+	if counterparty.HasSharedSecret() {	
+		values.Add("to", counterparty.GetAdsCertIdentityDomain())
+		values.Add("to_key", counterparty.KeyID())
+		values.Add("url_mac", b64truncate(urlHMAC))
+		values.Add("body_mac", b64truncate(bodyHMAC))
+	}
 
-	// Generate final signature
-	return unsignedMessage + "&sig=" + b64truncate(finalHMAC)
+	message := values.Encode()
+
+	if counterparty.HasSharedSecret() {
+		// Generate final signature
+		finalHMAC := h.Sum([]byte(message))
+		message = message + "&sig=" + b64truncate(finalHMAC)
+	}
+
+	return message
 }
 
 func b64truncate(rawMAC []byte) string {
