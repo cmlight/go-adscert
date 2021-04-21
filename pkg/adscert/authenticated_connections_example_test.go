@@ -5,21 +5,19 @@ import (
 	"log"
 
 	"github.com/cmlight/go-adscert/pkg/adscert"
-	"github.com/cmlight/go-adscert/pkg/adscertcrypto/localcrypto"
+	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
 )
 
 func Example() {
-	// Initialize a singleton AdsCertCrypto instance for the application.
-	// adsCertCrypto := localcrypto.NewLocalAdsCertCrypto()
 	signer := adscert.NewAuthenticatedConnectionsSigner(
-		localcrypto.NewLocalAdsCertCrypto())
+		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory())
 
 	// Determine the request parameters to sign.
 	destinationURL := "https://ads.example.com/request-ads"
 	body := []byte("{'id': '12345'}")
 
 	signature, err := signer.SignAuthenticatedConnection(
-		adscert.SignAuthenticatedConnectionParams{
+		adscert.AuthenticatedConnectionSignatureParams{
 			DestinationURL: destinationURL,
 			RequestBody:    body,
 		})
@@ -30,4 +28,29 @@ func Example() {
 	fmt.Print("Signature passed via X-Ads-Cert-Auth: ", signature.SignatureMessage)
 	// Output: Signature passed via X-Ads-Cert-Auth: [foo]
 
+}
+
+func ExampleVerify() {
+	signer := adscert.NewAuthenticatedConnectionsSigner(
+		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory())
+
+	// Determine the request parameters to sign.
+	// Destination URL must be assembled by application based on path, HTTP Host header.
+	// TODO: assemble sample code to show this.
+	destinationURL := "https://ads.example.com/request-ads"
+	body := []byte("{'id': '12345'}")
+	messageToVerify := "[foo]"
+
+	verification, err := signer.VerifyAuthenticatedConnection(
+		adscert.AuthenticatedConnectionSignatureParams{
+			DestinationURL:           destinationURL,
+			RequestBody:              body,
+			SignatureMessageToVerify: messageToVerify,
+		})
+	if err != nil {
+		log.Fatal("unable to verify message: ", err)
+	}
+
+	fmt.Printf("Signature verified? %v", verification.Valid)
+	// Output: Signature verified? unknown
 }
