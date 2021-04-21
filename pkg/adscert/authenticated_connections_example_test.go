@@ -8,7 +8,7 @@ import (
 	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
 )
 
-func Example() {
+func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 	signer := adscert.NewAuthenticatedConnectionsSigner(
 		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory())
 
@@ -30,7 +30,7 @@ func Example() {
 
 }
 
-func ExampleVerify() {
+func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 	signer := adscert.NewAuthenticatedConnectionsSigner(
 		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory())
 
