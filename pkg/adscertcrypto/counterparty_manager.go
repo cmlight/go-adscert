@@ -2,6 +2,7 @@ package adscertcrypto
 
 import (
 	"context"
+	"net"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,12 @@ type fakeDnsResolver struct {
 
 func (r *fakeDnsResolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
 	return r.fakeRecords, r.fakeError
+}
+
+type realDnsResolver struct{}
+
+func (r *realDnsResolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
+	return net.LookupTXT(name)
 }
 
 type counterpartyMap map[string]*counterpartyInfo

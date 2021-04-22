@@ -36,7 +36,7 @@ func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 
 	// Determine the request parameters to sign.
 	// Destination URL must be assembled by application based on path, HTTP Host header.
-	// TODO: assemble sample code to show this.
+	// TODO: assemble sample code to show this based on HTTP package.
 	destinationURL := "https://ads.example.com/request-ads"
 	body := []byte("{'id': '12345'}")
 	messageToVerify := "[foo]"

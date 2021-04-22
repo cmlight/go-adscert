@@ -14,61 +14,25 @@ import (
 )
 
 type authenticatedConnectionsSigner struct {
-	// adscertcrypto adscertcrypto.AdsCertCrypto
 	secureRandom io.Reader
 
 	signatory adscertcrypto.AuthenticatedConnectionsSignatory
 }
 
-func assembleRequestInfo(params *AuthenticatedConnectionSignatureParams, requestInfo *adscertcrypto.RequestInfo) error {
-	parsedURL, tldPlusOne, err := parseURLComponents(params.DestinationURL)
-	if err != nil {
-		// TODO: generate a signature message indicating URL parse failure.
-		return fmt.Errorf("unable to parse destination URL: %v", err)
-	}
-
-	requestInfo.InvocationHostname = tldPlusOne
-
-	hashRequests := []hashRequest{{
-		hashDestination: requestInfo.URLHash[:],
-		messageToHash:   []byte(parsedURL.String()),
-	}}
-
-	if len(params.RequestBody) != 0 {
-		hashRequests = append(hashRequests, hashRequest{
-			hashDestination: requestInfo.BodyHash[:],
-			messageToHash:   params.RequestBody,
-		})
-	}
-
-	calculateScopedHashes([]string{}, hashRequests)
-	return nil
-}
-
 func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params AuthenticatedConnectionSignatureParams) (AuthenticatedConnectionSignature, error) {
+	var err error
 	response := AuthenticatedConnectionSignature{}
 	signatureRequest := adscertcrypto.AuthenticatedConnectionSigningPackage{}
 
-	// Optional HMAC instead of hash for delegated signing environments
-	// or if this otherwise provides better security.  I think we will
-	// probably want to do this for everything to avoid a preimage attack, but
-	// not sure if it should happen in front of or behind the emboss service.
-	if err := assembleRequestInfo(&params, &signatureRequest.RequestInfo); err != nil {
+	if err = assembleRequestInfo(&params, &signatureRequest.RequestInfo); err != nil {
 		return response, fmt.Errorf("error parsing request URL: %v", err)
 	}
 
 	signatureRequest.Timestamp = time.Now().Format("060102T150405")
 
-	var nonce [32]byte
-	n, err := io.ReadFull(c.secureRandom, nonce[:])
-	if err != nil {
-		return response, fmt.Errorf("error generating random: %v", err)
+	if signatureRequest.Nonce, err = c.generateNonce(); err != nil {
+		return response, err
 	}
-	if n != 32 {
-		return response, fmt.Errorf("unexpected number of random values: %d", n)
-	}
-
-	signatureRequest.Nonce = adscertcrypto.B64truncate(nonce[:], 12)
 
 	// Invoke the embossing service
 	embossReply, err := c.signatory.EmbossSigningPackage(&signatureRequest)
@@ -100,6 +64,31 @@ func (c *authenticatedConnectionsSigner) VerifyAuthenticatedConnection(params Au
 	return response, nil
 }
 
+func assembleRequestInfo(params *AuthenticatedConnectionSignatureParams, requestInfo *adscertcrypto.RequestInfo) error {
+	parsedURL, tldPlusOne, err := parseURLComponents(params.DestinationURL)
+	if err != nil {
+		// TODO: generate a signature message indicating URL parse failure.
+		return fmt.Errorf("unable to parse destination URL: %v", err)
+	}
+
+	requestInfo.InvocationHostname = tldPlusOne
+
+	hashRequests := []hashRequest{{
+		hashDestination: requestInfo.URLHash[:],
+		messageToHash:   []byte(parsedURL.String()),
+	}}
+
+	if len(params.RequestBody) != 0 {
+		hashRequests = append(hashRequests, hashRequest{
+			hashDestination: requestInfo.BodyHash[:],
+			messageToHash:   params.RequestBody,
+		})
+	}
+
+	calculateScopedHashes([]string{}, hashRequests)
+	return nil
+}
+
 func parseURLComponents(destinationURL string) (*url.URL, string, error) {
 	parsedDestURL, err := url.Parse(destinationURL)
 	if err != nil {
@@ -110,6 +99,18 @@ func parseURLComponents(destinationURL string) (*url.URL, string, error) {
 		return nil, "", err
 	}
 	return parsedDestURL, tldPlusOne, nil
+}
+
+func (c *authenticatedConnectionsSigner) generateNonce() (string, error) {
+	var nonce [32]byte
+	n, err := io.ReadFull(c.secureRandom, nonce[:])
+	if err != nil {
+		return "", fmt.Errorf("error generating random: %v", err)
+	}
+	if n != 32 {
+		return "", fmt.Errorf("unexpected number of random values: %d", n)
+	}
+	return adscertcrypto.B64truncate(nonce[:], 12), nil
 }
 
 type hashRequest struct {

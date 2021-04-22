@@ -7,8 +7,8 @@ type RequestInfo struct {
 }
 
 type AuthenticatedConnectionSigningPackage struct {
-	Timestamp string // 2021-04-18T23:59:59
-	Nonce     string // ABCDEFGHIJKL
+	Timestamp string
+	Nonce     string
 
 	RequestInfo RequestInfo
 }
@@ -23,6 +23,6 @@ type AuthenticatedConnectionVerificationPackage struct {
 }
 
 type AuthenticatedConnectionVerificationResponse struct {
-	// TODO: Fill this out with something better.
+	// TODO: provide more details on verification
 	Valid bool
 }
