@@ -1,6 +1,9 @@
 package adscert
 
-import "github.com/cmlight/go-adscert/pkg/adscertcrypto"
+import (
+	crypto_rand "crypto/rand"
+	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
+)
 
 // AuthenticatedConnectionsSigner generates a signature intended for the
 // specified party over the specified message.
@@ -14,7 +17,8 @@ type AuthenticatedConnectionsSigner interface {
 // ads.cert Authenticated Connections signatures.
 func NewAuthenticatedConnectionsSigner(signatory adscertcrypto.AuthenticatedConnectionsSignatory) AuthenticatedConnectionsSigner {
 	return &authenticatedConnectionsSigner{
-		signatory: signatory,
+		signatory:    signatory,
+		secureRandom: crypto_rand.Reader,
 	}
 }
 
@@ -33,7 +37,7 @@ type AuthenticatedConnectionSignatureParams struct {
 // present for integrations that utilize a third-party verification service or
 // similar multiparty integration.
 type AuthenticatedConnectionSignature struct {
-	SignatureMessage []string
+	SignatureMessages []string
 }
 
 // AuthenticatedConnectionVerification captures the results of verifying a

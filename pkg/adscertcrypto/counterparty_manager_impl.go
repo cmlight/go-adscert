@@ -11,7 +11,7 @@ func (c *counterparty) GetAdsCertIdentityDomain() string {
 // TODO: enumeration of counterparty capabilities
 
 func (c *counterparty) HasSharedSecret() bool {
-	return false
+	return true
 }
 
 // TODO: change this

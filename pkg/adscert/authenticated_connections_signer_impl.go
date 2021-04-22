@@ -4,8 +4,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
 	"golang.org/x/net/publicsuffix"
@@ -13,6 +15,7 @@ import (
 
 type authenticatedConnectionsSigner struct {
 	// adscertcrypto adscertcrypto.AdsCertCrypto
+	secureRandom io.Reader
 
 	signatory adscertcrypto.AuthenticatedConnectionsSignatory
 }
@@ -50,8 +53,22 @@ func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params Auth
 	// or if this otherwise provides better security.  I think we will
 	// probably want to do this for everything to avoid a preimage attack, but
 	// not sure if it should happen in front of or behind the emboss service.
+	if err := assembleRequestInfo(&params, &signatureRequest.RequestInfo); err != nil {
+		return response, fmt.Errorf("error parsing request URL: %v", err)
+	}
 
-	assembleRequestInfo(&params, &signatureRequest.RequestInfo)
+	signatureRequest.Timestamp = time.Now().Format("060102T150405")
+
+	var nonce [32]byte
+	n, err := io.ReadFull(c.secureRandom, nonce[:])
+	if err != nil {
+		return response, fmt.Errorf("error generating random: %v", err)
+	}
+	if n != 32 {
+		return response, fmt.Errorf("unexpected number of random values: %d", n)
+	}
+
+	signatureRequest.Nonce = adscertcrypto.B64truncate(nonce[:], 12)
 
 	// Invoke the embossing service
 	embossReply, err := c.signatory.EmbossSigningPackage(&signatureRequest)
@@ -59,7 +76,7 @@ func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params Auth
 		return response, fmt.Errorf("error embossing signing package: %v", err)
 	}
 
-	response.SignatureMessage = embossReply.SignatureMessage
+	response.SignatureMessages = embossReply.SignatureMessages
 
 	return response, nil
 }
@@ -68,7 +85,9 @@ func (c *authenticatedConnectionsSigner) VerifyAuthenticatedConnection(params Au
 	response := AuthenticatedConnectionVerification{}
 	verificationRequest := adscertcrypto.AuthenticatedConnectionVerificationPackage{}
 
-	assembleRequestInfo(&params, &verificationRequest.RequestInfo)
+	if err := assembleRequestInfo(&params, &verificationRequest.RequestInfo); err != nil {
+		return response, fmt.Errorf("error parsing request URL: %v", err)
+	}
 	verificationRequest.SignatureMessage = params.SignatureMessageToVerify
 
 	verifyReply, err := c.signatory.VerifySigningPackage(&verificationRequest)

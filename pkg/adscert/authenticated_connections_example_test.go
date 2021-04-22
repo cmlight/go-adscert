@@ -25,7 +25,7 @@ func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 		log.Fatal("unable to sign message: ", err)
 	}
 
-	fmt.Print("Signature passed via X-Ads-Cert-Auth: ", signature.SignatureMessage)
+	fmt.Print("Signature passed via X-Ads-Cert-Auth: ", signature.SignatureMessages)
 	// Output: Signature passed via X-Ads-Cert-Auth: [foo]
 
 }

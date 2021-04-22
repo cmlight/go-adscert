@@ -14,7 +14,7 @@ type AuthenticatedConnectionSigningPackage struct {
 }
 
 type AuthenticatedConnectionSignatureResponse struct {
-	SignatureMessage []string
+	SignatureMessages []string
 }
 
 type AuthenticatedConnectionVerificationPackage struct {

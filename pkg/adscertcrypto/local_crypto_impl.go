@@ -8,6 +8,8 @@ import (
 	"net/url"
 )
 
+const hmacLength = 12
+
 type AuthenticatedConnectionsSignatory interface {
 	EmbossSigningPackage(request *AuthenticatedConnectionSigningPackage) (*AuthenticatedConnectionSignatureResponse, error)
 	VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error)
@@ -40,7 +42,7 @@ func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *A
 	}
 
 	for _, counterparty := range counterparties {
-		response.SignatureMessage = append(response.SignatureMessage, s.embossSingleMessage(request, counterparty))
+		response.SignatureMessages = append(response.SignatureMessages, s.embossSingleMessage(request, counterparty))
 	}
 
 	return response, nil
@@ -58,6 +60,11 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 	var message string
 
 	if counterparty.HasSharedSecret() {
+		values.Add("to", counterparty.GetAdsCertIdentityDomain())
+		values.Add("to_key", counterparty.KeyID())
+		values.Add("timestamp", request.Timestamp)
+		values.Add("nonce", request.Nonce)
+
 		h := hmac.New(sha256.New, counterparty.SharedSecret()[:])
 
 		// HMAC URL hash
@@ -66,16 +73,14 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 		// HMAC Body hash
 		bodyHMAC := h.Sum(request.RequestInfo.BodyHash[:])
 
-		values.Add("to", counterparty.GetAdsCertIdentityDomain())
-		values.Add("to_key", counterparty.KeyID())
-		values.Add("url_mac", b64truncate(urlHMAC))
-		values.Add("body_mac", b64truncate(bodyHMAC))
+		values.Add("url_mac", B64truncate(urlHMAC, hmacLength))
+		values.Add("body_mac", B64truncate(bodyHMAC, hmacLength))
 
 		message = values.Encode()
 
 		// Generate final signature
 		finalHMAC := h.Sum([]byte(message))
-		message = message + "&sig=" + b64truncate(finalHMAC)
+		message = message + "&sig=" + B64truncate(finalHMAC, hmacLength)
 	} else {
 		message = values.Encode()
 	}
@@ -115,9 +120,9 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 	return response, nil
 }
 
-func b64truncate(rawMAC []byte) string {
+func B64truncate(rawMAC []byte, length int) string {
 	b64MAC := base64.RawURLEncoding.EncodeToString(rawMAC)
-	return b64MAC[:6]
+	return b64MAC[:length]
 }
 
 func getFirstMapElement(values []string) string {
