@@ -17,7 +17,7 @@ type AuthenticatedConnectionsSignatory interface {
 
 func NewLocalAuthenticatedConnectionsSignatory() AuthenticatedConnectionsSignatory {
 	return &localAuthenticatedConnectionsSignatory{
-		counterpartyManager: NewCounterpartyManager(),
+		counterpartyManager: NewCounterpartyManager(&fakeDnsResolver{fakeRecords: []string{"fake DNS record"}}),
 	}
 }
 

@@ -44,6 +44,6 @@ type AuthenticatedConnectionSignature struct {
 // signature against the ads.cert Authenticated Connections specification
 // requirements.
 type AuthenticatedConnectionVerification struct {
-	// TODO: something better
+	// TODO: something more informative.
 	Valid bool
 }

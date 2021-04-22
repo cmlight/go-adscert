@@ -29,9 +29,6 @@ func (c *counterparty) Status() string {
 	return "UNKNOWN"
 }
 
-type counterpartyManager struct {
-}
-
 func (cm *counterpartyManager) FindCounterpartiesByInvocationHostname(hostname string) ([]Counterparty, error) {
 	counterparty := &counterparty{}
 

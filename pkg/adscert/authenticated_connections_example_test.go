@@ -52,5 +52,5 @@ func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 	}
 
 	fmt.Printf("Signature verified? %v", verification.Valid)
-	// Output: Signature verified? unknown
+	// Output: Signature verified? true
 }
