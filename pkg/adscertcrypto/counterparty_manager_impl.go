@@ -1,24 +1,25 @@
 package adscertcrypto
 
 type counterparty struct {
-	sharedSecret [32]byte
+	// sharedSecret [32]byte
+	counterpartyInfo counterpartyInfo
 }
 
 func (c *counterparty) GetAdsCertIdentityDomain() string {
-	return "example.com"
+	return c.counterpartyInfo.registerableDomain
 }
 
 // TODO: enumeration of counterparty capabilities
 
 func (c *counterparty) HasSharedSecret() bool {
-	return true
+	return c.counterpartyInfo.currentSharedSecret.initialized
 }
 
 // TODO: change this
 func (c *counterparty) SharedSecret() *[32]byte {
 
 	// TODO: clean this up
-	return &c.sharedSecret
+	return &c.counterpartyInfo.currentSharedSecret.sharedSecret
 }
 
 func (c *counterparty) KeyID() string {
@@ -26,11 +27,11 @@ func (c *counterparty) KeyID() string {
 }
 
 func (c *counterparty) Status() string {
-	return "UNKNOWN"
+	return "TODO"
 }
 
 func (cm *counterpartyManager) FindCounterpartiesByInvocationHostname(hostname string) ([]Counterparty, error) {
-	counterparty := &counterparty{}
+	counterparty := &counterparty{counterpartyInfo: cm.lookup(hostname)}
 
 	return []Counterparty{counterparty}, nil
 }
