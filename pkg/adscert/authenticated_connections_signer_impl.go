@@ -121,7 +121,7 @@ type hashRequest struct {
 func calculateScopedHashes(scopeKey []string, hashRequests []hashRequest) {
 	joinedScopeKey := strings.Join(scopeKey, "/")
 
-	// TODO: evaluate if this is really needed
+	// TODO: restructure this
 	h := hmac.New(sha256.New, []byte(joinedScopeKey))
 	for _, req := range hashRequests {
 		copy(req.hashDestination, h.Sum(req.messageToHash))
