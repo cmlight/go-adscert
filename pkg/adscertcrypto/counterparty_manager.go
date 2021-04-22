@@ -207,7 +207,3 @@ type CounterpartyManager interface {
 
 	FindCounterpartyByCallsign(callsign string) (Counterparty, error)
 }
-
-// func NewCounterpartyManager() CounterpartyManager {
-// 	return &counterpartyManager{}
-// }

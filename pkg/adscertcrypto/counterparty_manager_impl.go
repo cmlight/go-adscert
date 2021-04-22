@@ -1,7 +1,6 @@
 package adscertcrypto
 
 type counterparty struct {
-	// sharedSecret [32]byte
 	counterpartyInfo counterpartyInfo
 }
 
