@@ -6,6 +6,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+
+	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
+	"github.com/golang/glog"
 )
 
 const hmacLength = 12
@@ -15,9 +18,12 @@ type AuthenticatedConnectionsSignatory interface {
 	VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error)
 }
 
-func NewLocalAuthenticatedConnectionsSignatory() AuthenticatedConnectionsSignatory {
+func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, originKeyID string) AuthenticatedConnectionsSignatory {
+	_, privateKey := GenerateFakeKeyPairFromDomainNameForTesting(originCallsign)
 	return &localAuthenticatedConnectionsSignatory{
-		counterpartyManager: NewCounterpartyManager(&fakeDnsResolver{fakeRecords: []string{"fake DNS record"}}),
+		counterpartyManager: adscertcounterparty.NewCounterpartyManager(NewFakeKeyGeneratingDnsResolver(), privateKey),
+		originCallsign:      originCallsign,
+		originKeyID:         originKeyID,
 	}
 }
 
@@ -25,7 +31,7 @@ type localAuthenticatedConnectionsSignatory struct {
 	originCallsign string
 	originKeyID    string // TODO: clean this up
 
-	counterpartyManager CounterpartyManager
+	counterpartyManager adscertcounterparty.CounterpartyAPI
 }
 
 func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *AuthenticatedConnectionSigningPackage) (*AuthenticatedConnectionSignatureResponse, error) {
@@ -36,23 +42,23 @@ func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *A
 
 	// Look up invocation hostname's counterparties
 	// TODO: psl cleanup
-	counterparties, err := s.counterpartyManager.FindCounterpartiesByInvocationHostname(request.RequestInfo.InvocationHostname)
+	invocationCounterparty, err := s.counterpartyManager.LookUpInvocationCounterpartyByHostname(request.RequestInfo.InvocationHostname)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, counterparty := range counterparties {
+	for _, counterparty := range invocationCounterparty.GetSignatureCounterparties() {
 		response.SignatureMessages = append(response.SignatureMessages, s.embossSingleMessage(request, counterparty))
 	}
 
 	return response, nil
 }
 
-func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *AuthenticatedConnectionSigningPackage, counterparty Counterparty) string {
+func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *AuthenticatedConnectionSigningPackage, counterparty adscertcounterparty.SignatureCounterparty) string {
 
 	// Assemble final unsigned message
 	values := url.Values{}
-	values.Add("status", counterparty.Status())
+	values.Add("status", string(counterparty.GetStatus()))
 	values.Add("invoking", request.RequestInfo.InvocationHostname)
 	values.Add("from", s.originCallsign)
 	values.Add("from_key", s.originKeyID)
@@ -65,22 +71,21 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 		values.Add("timestamp", request.Timestamp)
 		values.Add("nonce", request.Nonce)
 
-		h := hmac.New(sha256.New, counterparty.SharedSecret()[:])
+		requestKey := append(counterparty.SharedSecret()[:])
 
-		// HMAC URL hash
-		urlHMAC := h.Sum(request.RequestInfo.URLHash[:])
-
-		// HMAC Body hash
-		bodyHMAC := h.Sum(request.RequestInfo.BodyHash[:])
-
-		values.Add("url_mac", B64truncate(urlHMAC, hmacLength))
-		values.Add("body_mac", B64truncate(bodyHMAC, hmacLength))
+		h := hmac.New(sha256.New, requestKey)
 
 		message = values.Encode()
 
 		// Generate final signature
-		finalHMAC := h.Sum([]byte(message))
-		message = message + "&sig=" + B64truncate(finalHMAC, hmacLength)
+		h.Write([]byte(message))
+		h.Write(request.RequestInfo.BodyHash[:])
+		bodyHMAC := h.Sum(nil)
+
+		h.Write(request.RequestInfo.URLHash[:])
+		urlHMAC := h.Sum(nil)
+
+		message = message + "&sigb=" + B64truncate(bodyHMAC, hmacLength) + "&sigu=" + B64truncate(urlHMAC, hmacLength)
 	} else {
 		message = values.Encode()
 	}
@@ -89,6 +94,7 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 }
 
 func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error) {
+	glog.Info("Trying verification")
 	response := &AuthenticatedConnectionVerificationResponse{}
 
 	// Parse the message to figure out counterparty details.
@@ -100,7 +106,26 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 
 	// Validate invocation hostname matches request
 	if getFirstMapElement(values["invoking"]) != request.RequestInfo.InvocationHostname {
+		glog.Infof("Invocation hostname %s != %s", getFirstMapElement(values["invoking"]), request.RequestInfo.InvocationHostname)
+		// Unrelated signature error
+		return response, nil
+	}
 
+	from := getFirstMapElement(values["from"])
+	if from == "" {
+		glog.Info("missing origin")
+		// missing origin domain
+		return response, nil
+	}
+
+	signatureCounterparty, err := s.counterpartyManager.LookUpSignatureCounterpartyByCallsign(from)
+	if err != nil {
+		return response, err
+	}
+
+	if !signatureCounterparty.HasSharedSecret() {
+		glog.Infof("No shared secret yet with %s", from)
+		return response, nil
 	}
 
 	// Look up my key details (try to hide this behind the counterparty API), e.g. SharedSecretFor(myKeyId, theirKeyId)
@@ -116,6 +141,9 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 	// Validate the URL hash
 
 	// Validate the body hash
+
+	glog.Info("fallthrough")
+	response.Valid = true
 
 	return response, nil
 }

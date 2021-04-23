@@ -1,12 +1,10 @@
 package adscert
 
 import (
-	"crypto/hmac"
 	"crypto/sha256"
 	"fmt"
 	"io"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
@@ -24,14 +22,14 @@ func (c *authenticatedConnectionsSigner) SignAuthenticatedConnection(params Auth
 	response := AuthenticatedConnectionSignature{}
 	signatureRequest := adscertcrypto.AuthenticatedConnectionSigningPackage{}
 
-	if err = assembleRequestInfo(&params, &signatureRequest.RequestInfo); err != nil {
-		return response, fmt.Errorf("error parsing request URL: %v", err)
-	}
-
 	signatureRequest.Timestamp = time.Now().Format("060102T150405")
 
 	if signatureRequest.Nonce, err = c.generateNonce(); err != nil {
 		return response, err
+	}
+
+	if err = assembleRequestInfo(&params, &signatureRequest.RequestInfo); err != nil {
+		return response, fmt.Errorf("error parsing request URL: %v", err)
 	}
 
 	// Invoke the embossing service
@@ -52,7 +50,7 @@ func (c *authenticatedConnectionsSigner) VerifyAuthenticatedConnection(params Au
 	if err := assembleRequestInfo(&params, &verificationRequest.RequestInfo); err != nil {
 		return response, fmt.Errorf("error parsing request URL: %v", err)
 	}
-	verificationRequest.SignatureMessage = params.SignatureMessageToVerify
+	verificationRequest.SignatureMessage = params.SignatureMessageToVerify[0] // TODO fix me
 
 	verifyReply, err := c.signatory.VerifySigningPackage(&verificationRequest)
 	if err != nil {
@@ -73,19 +71,12 @@ func assembleRequestInfo(params *AuthenticatedConnectionSignatureParams, request
 
 	requestInfo.InvocationHostname = tldPlusOne
 
-	hashRequests := []hashRequest{{
-		hashDestination: requestInfo.URLHash[:],
-		messageToHash:   []byte(parsedURL.String()),
-	}}
+	urlHash := sha256.Sum256([]byte(parsedURL.String()))
+	copy(requestInfo.URLHash[:], urlHash[:])
 
-	if len(params.RequestBody) != 0 {
-		hashRequests = append(hashRequests, hashRequest{
-			hashDestination: requestInfo.BodyHash[:],
-			messageToHash:   params.RequestBody,
-		})
-	}
+	bodyHash := sha256.Sum256(params.RequestBody)
+	copy(requestInfo.BodyHash[:], bodyHash[:])
 
-	calculateScopedHashes([]string{}, hashRequests)
 	return nil
 }
 
@@ -111,19 +102,4 @@ func (c *authenticatedConnectionsSigner) generateNonce() (string, error) {
 		return "", fmt.Errorf("unexpected number of random values: %d", n)
 	}
 	return adscertcrypto.B64truncate(nonce[:], 12), nil
-}
-
-type hashRequest struct {
-	hashDestination []byte
-	messageToHash   []byte
-}
-
-func calculateScopedHashes(scopeKey []string, hashRequests []hashRequest) {
-	joinedScopeKey := strings.Join(scopeKey, "/")
-
-	// TODO: restructure this
-	h := hmac.New(sha256.New, []byte(joinedScopeKey))
-	for _, req := range hashRequests {
-		copy(req.hashDestination, h.Sum(req.messageToHash))
-	}
 }

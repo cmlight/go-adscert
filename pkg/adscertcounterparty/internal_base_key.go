@@ -1,4 +1,4 @@
-package adscertcrypto
+package adscertcounterparty
 
 import "golang.org/x/crypto/curve25519"
 

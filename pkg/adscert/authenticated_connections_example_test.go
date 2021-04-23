@@ -10,10 +10,10 @@ import (
 
 func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 	signer := adscert.NewAuthenticatedConnectionsSigner(
-		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory())
+		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory("origin-signer.com", "a1b2c3"))
 
 	// Determine the request parameters to sign.
-	destinationURL := "https://ads.example.com/request-ads"
+	destinationURL := "https://ads.foo.com/request-ads"
 	body := []byte("{'id': '12345'}")
 
 	signature, err := signer.SignAuthenticatedConnection(
@@ -32,7 +32,7 @@ func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 
 func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 	signer := adscert.NewAuthenticatedConnectionsSigner(
-		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory())
+		adscertcrypto.NewLocalAuthenticatedConnectionsSignatory("destination-verifier.com", "w1x2y3"))
 
 	// Determine the request parameters to sign.
 	// Destination URL must be assembled by application based on path, HTTP Host header.
@@ -45,7 +45,7 @@ func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 		adscert.AuthenticatedConnectionSignatureParams{
 			DestinationURL:           destinationURL,
 			RequestBody:              body,
-			SignatureMessageToVerify: messageToVerify,
+			SignatureMessageToVerify: []string{messageToVerify},
 		})
 	if err != nil {
 		log.Fatal("unable to verify message: ", err)

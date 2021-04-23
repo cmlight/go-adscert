@@ -1,7 +1,8 @@
-package adscertcrypto
+package adscertcounterparty
 
 import (
 	"context"
+	"encoding/base64"
 	"net"
 	"strings"
 	"sync"
@@ -15,6 +16,10 @@ type DNSResolver interface {
 	LookupTXT(ctx context.Context, name string) ([]string, error)
 }
 
+func NewFakeDnsResolver() DNSResolver {
+	return &fakeDnsResolver{fakeRecords: []string{"fake DNS record"}}
+}
+
 type fakeDnsResolver struct {
 	fakeRecords []string
 	fakeError   error
@@ -22,6 +27,10 @@ type fakeDnsResolver struct {
 
 func (r *fakeDnsResolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
 	return r.fakeRecords, r.fakeError
+}
+
+func NewRealDnsResolver() DNSResolver {
+	return &realDnsResolver{}
 }
 
 type realDnsResolver struct{}
@@ -37,6 +46,8 @@ type counterpartyInfo struct {
 	currentPublicKey    x25519PublicKey
 	currentSharedSecret x25519SharedSecret
 	lastUpdateTime      time.Time
+
+	signatureCounterpartyDomains []string
 }
 
 type counterpartyManager struct {
@@ -51,19 +62,89 @@ type counterpartyManager struct {
 	dnsResolver DNSResolver
 }
 
-func NewCounterpartyManager(dnsResolver DNSResolver) *counterpartyManager {
+func NewCounterpartyManager(dnsResolver DNSResolver, privateKey [32]byte) CounterpartyAPI {
 	cm := &counterpartyManager{
 		ticker:      time.NewTicker(30 * time.Second), // Make this configurable.
 		wakeUp:      make(chan struct{}, 1),
 		dnsResolver: dnsResolver,
+		myPrivateKey: x25519PrivateKey{
+			privateKey:  privateKey,
+			initialized: true,
+		},
 	}
 
 	// TODO: properly read in private key.
-	cm.myPrivateKey.initialized = true
+	// cm.myPrivateKey.initialized = true
 
 	cm.counterparties.Store(counterpartyMap{})
 	cm.startAutoUpdate()
 	return cm
+}
+
+type invocationCounterparty struct {
+	counterpartyInfo          counterpartyInfo
+	signatureCounterpartyInfo []counterpartyInfo
+}
+
+func (c *invocationCounterparty) GetStatus() CounterpartyStatus {
+	return StatusUnspecified
+}
+
+func (c *invocationCounterparty) GetSignatureCounterparties() []SignatureCounterparty {
+	result := []SignatureCounterparty{}
+
+	for _, counterparty := range c.signatureCounterpartyInfo {
+		result = append(result, &signatureCounterparty{counterpartyInfo: counterparty})
+	}
+
+	return result
+}
+
+type signatureCounterparty struct {
+	counterpartyInfo counterpartyInfo
+}
+
+func (c *signatureCounterparty) GetAdsCertIdentityDomain() string {
+	return c.counterpartyInfo.registerableDomain
+}
+
+func (c *signatureCounterparty) GetStatus() CounterpartyStatus {
+	return StatusUnspecified
+}
+
+func (c *signatureCounterparty) HasSharedSecret() bool {
+	return c.counterpartyInfo.currentSharedSecret.initialized
+}
+
+// TODO: change this
+func (c *signatureCounterparty) SharedSecret() *[32]byte {
+	return &c.counterpartyInfo.currentSharedSecret.sharedSecret
+}
+
+func (c *signatureCounterparty) KeyID() string {
+	return "a1b2c3"
+}
+
+func (cm *counterpartyManager) LookUpInvocationCounterpartyByHostname(invocationHostname string) (InvocationCounterparty, error) {
+	// Look up invocation party
+	invocationCounterparty := &invocationCounterparty{counterpartyInfo: cm.lookup(invocationHostname)}
+
+	if len(invocationCounterparty.counterpartyInfo.signatureCounterpartyDomains) == 0 {
+		// We don't yet know who will be the signing counterparties for this
+		// domain, so just use its own configuration
+		invocationCounterparty.signatureCounterpartyInfo = append(invocationCounterparty.signatureCounterpartyInfo, invocationCounterparty.counterpartyInfo)
+	} else {
+		// For each identified signature counterparty, look them up
+		for _, d := range invocationCounterparty.counterpartyInfo.signatureCounterpartyDomains {
+			invocationCounterparty.signatureCounterpartyInfo = append(invocationCounterparty.signatureCounterpartyInfo, cm.lookup(d))
+		}
+	}
+
+	return invocationCounterparty, nil
+}
+
+func (cm *counterpartyManager) LookUpSignatureCounterpartyByCallsign(adsCertCallsign string) (SignatureCounterparty, error) {
+	return &signatureCounterparty{counterpartyInfo: cm.lookup(adsCertCallsign)}, nil
 }
 
 func (cm *counterpartyManager) startAutoUpdate() {
@@ -103,13 +184,13 @@ func (cm *counterpartyManager) performUpdateSweep(ctx context.Context) {
 				glog.Infof("Found text record for %s in %v: %v", domain, time.Now().Sub(start), records)
 
 				// TODO: do this properly
-				fixmeTextRecordConcat := []byte(strings.Join(records, ""))
-				for i, b := range fixmeTextRecordConcat {
-					if i >= 32 {
-						break
-					}
-					currentCounterpartyState.currentPublicKey.publicKey[i] = b
+				fixmeTextRecordConcat := strings.Join(records, "")
+
+				decodedBytes, err := base64.RawURLEncoding.DecodeString(fixmeTextRecordConcat)
+				if err != nil {
+					glog.Warningf("Error decoding b64 key %s for domain %s", fixmeTextRecordConcat, currentCounterpartyState.registerableDomain)
 				}
+				copy(currentCounterpartyState.currentPublicKey.publicKey[:], decodedBytes)
 				currentCounterpartyState.currentPublicKey.initialized = true
 
 				sharedSecret, err := calculateSharedSecret(cm.myPrivateKey, currentCounterpartyState.currentPublicKey)
@@ -197,20 +278,20 @@ func buildInitialCounterparty(registerableDomain string) *counterpartyInfo {
 // advertising ecosystem who may or may not participate within the ads.cert
 // standard. A Counterparty safely encapsulates the public key material used for
 // authenticating with the entity.
-type Counterparty interface {
-	GetAdsCertIdentityDomain() string
+// type Counterparty interface {
+// 	GetAdsCertIdentityDomain() string
 
-	HasSharedSecret() bool
+// 	HasSharedSecret() bool
 
-	SharedSecret() *[32]byte
+// 	SharedSecret() *[32]byte
 
-	KeyID() string
+// 	KeyID() string
 
-	Status() string
-}
+// 	Status() string
+// }
 
-type CounterpartyManager interface {
-	FindCounterpartiesByInvocationHostname(hostname string) ([]Counterparty, error)
+// type CounterpartyManager interface {
+// 	FindCounterpartiesByInvocationHostname(hostname string) ([]Counterparty, error)
 
-	FindCounterpartyByCallsign(callsign string) (Counterparty, error)
-}
+// 	FindCounterpartyByCallsign(callsign string) (Counterparty, error)
+// }

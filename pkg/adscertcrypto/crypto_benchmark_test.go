@@ -25,7 +25,10 @@ func BenchmarkSHA256_32byte(b *testing.B) {
 func BenchmarkHMAC_SHA256_32byte(b *testing.B) {
 	var key, data [32]byte
 	for i := 0; i < b.N; i++ {
-		hmac.New(sha256.New, key[:]).Sum(data[:])
+		h := hmac.New(sha256.New, key[:])
+		h.Write(data[:])
+		h.Sum(nil)
+		h.Reset()
 	}
 }
 
@@ -33,6 +36,8 @@ func BenchmarkHMAC_ReuseSHA256_32byte(b *testing.B) {
 	var key, data [32]byte
 	h := hmac.New(sha256.New, key[:])
 	for i := 0; i < b.N; i++ {
-		h.Sum(data[:])
+		h.Write(data[:])
+		h.Sum(nil)
+		h.Reset()
 	}
 }

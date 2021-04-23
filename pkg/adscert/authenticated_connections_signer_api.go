@@ -29,7 +29,7 @@ type AuthenticatedConnectionSignatureParams struct {
 	RequestBody    []byte
 
 	// When verifying an existing set of signatures, also include these values.
-	SignatureMessageToVerify string
+	SignatureMessageToVerify []string
 }
 
 // AuthenticatedConnectionSignature represents a signature conforming to the
