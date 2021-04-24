@@ -45,5 +45,6 @@ type AuthenticatedConnectionSignature struct {
 // requirements.
 type AuthenticatedConnectionVerification struct {
 	// TODO: something more informative.
-	Valid bool
+	BodyValid bool
+	URLValid  bool
 }

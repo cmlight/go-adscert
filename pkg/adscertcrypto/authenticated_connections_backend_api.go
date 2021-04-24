@@ -24,5 +24,6 @@ type AuthenticatedConnectionVerificationPackage struct {
 
 type AuthenticatedConnectionVerificationResponse struct {
 	// TODO: provide more details on verification
-	Valid bool
+	BodyValid bool
+	URLValid  bool
 }

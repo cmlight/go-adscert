@@ -51,6 +51,6 @@ func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 		log.Fatal("unable to verify message: ", err)
 	}
 
-	fmt.Printf("Signature verified? %v", verification.Valid)
-	// Output: Signature verified? true
+	fmt.Printf("Signature verified? %v %v", verification.BodyValid, verification.URLValid)
+	// Output: Signature verified? true, true
 }

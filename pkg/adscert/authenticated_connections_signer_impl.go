@@ -57,7 +57,8 @@ func (c *authenticatedConnectionsSigner) VerifyAuthenticatedConnection(params Au
 		return response, fmt.Errorf("error verifying signing package: %v", err)
 	}
 
-	response.Valid = verifyReply.Valid
+	response.BodyValid = verifyReply.BodyValid
+	response.URLValid = verifyReply.URLValid
 
 	return response, nil
 }

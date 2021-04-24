@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strings"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
 	"github.com/golang/glog"
@@ -85,7 +86,7 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 		h.Write(request.RequestInfo.URLHash[:])
 		urlHMAC := h.Sum(nil)
 
-		message = message + "&sigb=" + B64truncate(bodyHMAC, hmacLength) + "&sigu=" + B64truncate(urlHMAC, hmacLength)
+		message = message + "; sigb=" + B64truncate(bodyHMAC, hmacLength) + "&sigu=" + B64truncate(urlHMAC, hmacLength)
 	} else {
 		message = values.Encode()
 	}
@@ -94,14 +95,28 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 }
 
 func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error) {
-	glog.Info("Trying verification")
+	// glog.Info("Trying verification")
 	response := &AuthenticatedConnectionVerificationResponse{}
 
+	splitSignature := strings.Split(request.SignatureMessage, ";")
+	if len(splitSignature) != 2 {
+		return response, fmt.Errorf("wrong number of signature message tokens")
+	}
+
+	message := strings.TrimSpace(splitSignature[0])
+	sigs := strings.TrimSpace(splitSignature[1])
+
 	// Parse the message to figure out counterparty details.
-	values, err := url.ParseQuery(request.SignatureMessage)
+	values, err := url.ParseQuery(message)
 	if err != nil {
 		// TODO: Make this into a normal return code
-		return nil, fmt.Errorf("query string parse failure: %v", err)
+		return response, fmt.Errorf("query string parse failure: %v", err)
+	}
+
+	parsedSigs, err := url.ParseQuery(sigs)
+	if err != nil {
+		// TODO: Make this into a normal return code
+		return response, fmt.Errorf("signature string parse failure: %v", err)
 	}
 
 	// Validate invocation hostname matches request
@@ -118,6 +133,7 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 		return response, nil
 	}
 
+	// Look up originator by callsign
 	signatureCounterparty, err := s.counterpartyManager.LookUpSignatureCounterpartyByCallsign(from)
 	if err != nil {
 		return response, err
@@ -130,20 +146,38 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 
 	// Look up my key details (try to hide this behind the counterparty API), e.g. SharedSecretFor(myKeyId, theirKeyId)
 
-	// Look up originator by callsign
-
 	// Validate the overall signature
 	//  remove signature suffix
 	//  HMAC against shared secret
-	//  Check that HMACs match using hmac.Equal
-	//  Record outcome
+	requestKey := append(signatureCounterparty.SharedSecret()[:])
 
-	// Validate the URL hash
+	h := hmac.New(sha256.New, requestKey)
+	h.Write([]byte(message))
+	h.Write(request.RequestInfo.BodyHash[:])
+	bodyHMACPrefix := B64truncate(h.Sum(nil), hmacLength)
 
-	// Validate the body hash
+	h.Write(request.RequestInfo.URLHash[:])
+	urlHMACPrefix := B64truncate(h.Sum(nil), hmacLength)
 
-	glog.Info("fallthrough")
-	response.Valid = true
+	sigb := parsedSigs["sigb"]
+	if len(sigb) != 1 {
+		glog.Warning("expected exactly one sigb")
+		return response, nil
+	}
+
+	if hmac.Equal([]byte(bodyHMACPrefix), []byte(sigb[0])) {
+		response.BodyValid = true
+	}
+
+	sigu := parsedSigs["sigu"]
+	if len(sigb) != 1 {
+		glog.Warning("expected exactly one sigu")
+		return response, nil
+	}
+
+	if hmac.Equal([]byte(urlHMACPrefix), []byte(sigu[0])) {
+		response.URLValid = true
+	}
 
 	return response, nil
 }

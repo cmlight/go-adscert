@@ -19,7 +19,7 @@ func (s *DemoServer) HandleRequest(w http.ResponseWriter, req *http.Request) {
 
 	// Make a copy of the URL struct so that we can reconstruct what the client sent.
 	reconstructedURL := *req.URL
-	reconstructedURL.Scheme = "https" // Protocol only valid over HTTPS
+	reconstructedURL.Scheme = "http" // Protocol only valid over HTTPS TODO FIXME
 	reconstructedURL.Host = req.Host
 
 	body, err := ioutil.ReadAll(req.Body)
@@ -35,5 +35,5 @@ func (s *DemoServer) HandleRequest(w http.ResponseWriter, req *http.Request) {
 			SignatureMessageToVerify: signatureHeaders,
 		})
 
-	fmt.Fprintf(w, "You invoked %s with headers %v and verification %v\n", reconstructedURL.String(), req.Header, verification.Valid)
+	fmt.Fprintf(w, "You invoked %s with headers %v and verification %v %v\n", reconstructedURL.String(), req.Header, verification.BodyValid, verification.URLValid)
 }
