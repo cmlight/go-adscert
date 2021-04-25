@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcrypto"
+	"github.com/cmlight/go-adscert/pkg/formats"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -102,5 +103,5 @@ func (c *authenticatedConnectionsSigner) generateNonce() (string, error) {
 	if n != 32 {
 		return "", fmt.Errorf("unexpected number of random values: %d", n)
 	}
-	return adscertcrypto.B64truncate(nonce[:], 12), nil
+	return formats.B64truncate(nonce[:], 12), nil
 }

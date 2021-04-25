@@ -3,10 +3,7 @@ package adscertcrypto
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
 	"github.com/cmlight/go-adscert/pkg/formats"
@@ -38,9 +35,6 @@ func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *A
 	// Note: this is basically going to be the same process for signing and verifying except the lookup method.
 	response := &AuthenticatedConnectionSignatureResponse{}
 
-	// Look up my ads.cert info.
-
-	// Look up invocation hostname's counterparties
 	// TODO: psl cleanup
 	invocationCounterparty, err := s.counterpartyManager.LookUpInvocationCounterpartyByHostname(request.RequestInfo.InvocationHostname)
 	if err != nil {
@@ -60,145 +54,71 @@ func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *A
 
 func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *AuthenticatedConnectionSigningPackage, counterparty adscertcounterparty.SignatureCounterparty) (string, error) {
 
-	acs, err := formats.NewAuthenticatedConnectionSignature(counterparty.GetStatus().String(), request.RequestInfo.InvocationHostname, s.originCallsign)
+	acs, err := formats.NewAuthenticatedConnectionSignature(counterparty.GetStatus().String(), s.originCallsign, request.RequestInfo.InvocationHostname)
 	if err != nil {
 		return "", fmt.Errorf("error constructing authenticated connection signature format: %v", err)
 	}
 
-	// Assemble final unsigned message
-	// values := url.Values{}
-	// values.Add("status", string(counterparty.GetStatus()))
-	// values.Add("invoking", request.RequestInfo.InvocationHostname)
-	// values.Add("from", s.originCallsign)
-
 	if !counterparty.HasSharedSecret() {
 		return acs.EncodeMessage(), nil
 	}
+
 	acs.AddParametersForSignature(s.originKeyID,
 		counterparty.GetAdsCertIdentityDomain(),
 		counterparty.KeyID(),
 		request.Timestamp,
 		request.Nonce)
 
-	// values.Add("from_key", s.originKeyID)
-	// values.Add("to", counterparty.GetAdsCertIdentityDomain())
-	// values.Add("to_key", counterparty.KeyID())
-	// values.Add("timestamp", request.Timestamp)
-	// values.Add("nonce", request.Nonce)
-
-	requestKey := append(counterparty.SharedSecret()[:])
-
-	h := hmac.New(sha256.New, requestKey)
-
 	message := acs.EncodeMessage()
-
-	// Generate final signature
-	h.Write([]byte(message))
-	h.Write(request.RequestInfo.BodyHash[:])
-	bodyHMAC := h.Sum(nil)
-
-	h.Write(request.RequestInfo.URLHash[:])
-	urlHMAC := h.Sum(nil)
-
+	bodyHMAC, urlHMAC := generateSignatures(counterparty, []byte(message), request.RequestInfo.BodyHash[:], request.RequestInfo.URLHash[:])
 	return message + formats.EncodeSignatureSuffix(bodyHMAC, urlHMAC), nil
 }
 
 func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error) {
-	// glog.Info("Trying verification")
 	response := &AuthenticatedConnectionVerificationResponse{}
 
-	splitSignature := strings.Split(request.SignatureMessage, ";")
-	if len(splitSignature) != 2 {
-		return response, fmt.Errorf("wrong number of signature message tokens")
-	}
-
-	message := strings.TrimSpace(splitSignature[0])
-	sigs := strings.TrimSpace(splitSignature[1])
-
-	// Parse the message to figure out counterparty details.
-	values, err := url.ParseQuery(message)
+	acs, err := formats.DecodeAuthenticatedConnectionSignature(request.SignatureMessage)
 	if err != nil {
-		// TODO: Make this into a normal return code
-		return response, fmt.Errorf("query string parse failure: %v", err)
+		return response, fmt.Errorf("signature decode failure: %v", err)
 	}
 
-	parsedSigs, err := url.ParseQuery(sigs)
-	if err != nil {
-		// TODO: Make this into a normal return code
-		return response, fmt.Errorf("signature string parse failure: %v", err)
-	}
+	glog.Infof("parsed ACS: %+v", acs)
 
 	// Validate invocation hostname matches request
-	if getFirstMapElement(values["invoking"]) != request.RequestInfo.InvocationHostname {
-		glog.Infof("Invocation hostname %s != %s", getFirstMapElement(values["invoking"]), request.RequestInfo.InvocationHostname)
-		// Unrelated signature error
-		return response, nil
-	}
-
-	from := getFirstMapElement(values["from"])
-	if from == "" {
-		glog.Info("missing origin")
-		// missing origin domain
-		return response, nil
+	if acs.GetAttributeInvoking() != request.RequestInfo.InvocationHostname {
+		// TODO: Unrelated signature error
+		glog.Info("unrelated signature")
+		return response, fmt.Errorf("Unrelated signature error")
 	}
 
 	// Look up originator by callsign
-	signatureCounterparty, err := s.counterpartyManager.LookUpSignatureCounterpartyByCallsign(from)
+	signatureCounterparty, err := s.counterpartyManager.LookUpSignatureCounterpartyByCallsign(acs.GetAttributeFrom())
 	if err != nil {
+		glog.Info("counterparty lookup error")
 		return response, err
 	}
 
 	if !signatureCounterparty.HasSharedSecret() {
-		glog.Infof("No shared secret yet with %s", from)
+		// TODO: shared secret missing error
+		glog.Info("no shared secret")
 		return response, nil
 	}
 
-	// Look up my key details (try to hide this behind the counterparty API), e.g. SharedSecretFor(myKeyId, theirKeyId)
-
-	// Validate the overall signature
-	//  remove signature suffix
-	//  HMAC against shared secret
-	requestKey := append(signatureCounterparty.SharedSecret()[:])
-
-	h := hmac.New(sha256.New, requestKey)
-	h.Write([]byte(message))
-	h.Write(request.RequestInfo.BodyHash[:])
-	bodyHMACPrefix := B64truncate(h.Sum(nil), 12)
-
-	h.Write(request.RequestInfo.URLHash[:])
-	urlHMACPrefix := B64truncate(h.Sum(nil), 12)
-
-	sigb := parsedSigs["sigb"]
-	if len(sigb) != 1 {
-		glog.Warning("expected exactly one sigb")
-		return response, nil
-	}
-
-	if hmac.Equal([]byte(bodyHMACPrefix), []byte(sigb[0])) {
-		response.BodyValid = true
-	}
-
-	sigu := parsedSigs["sigu"]
-	if len(sigb) != 1 {
-		glog.Warning("expected exactly one sigu")
-		return response, nil
-	}
-
-	if hmac.Equal([]byte(urlHMACPrefix), []byte(sigu[0])) {
-		response.URLValid = true
-	}
-
+	glog.Info("checking signatures")
+	bodyHMAC, urlHMAC := generateSignatures(signatureCounterparty, []byte(acs.EncodeMessage()), request.RequestInfo.BodyHash[:], request.RequestInfo.URLHash[:])
+	response.BodyValid, response.URLValid = acs.CompareSignatures(bodyHMAC, urlHMAC)
 	return response, nil
 }
 
-func B64truncate(rawMAC []byte, length int) string {
-	b64MAC := base64.RawURLEncoding.EncodeToString(rawMAC)
-	return b64MAC[:length]
-}
+func generateSignatures(counterparty adscertcounterparty.SignatureCounterparty, message []byte, bodyHash []byte, urlHash []byte) ([]byte, []byte) {
+	h := hmac.New(sha256.New, counterparty.SharedSecret()[:])
 
-func getFirstMapElement(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
+	h.Write([]byte(message))
+	h.Write(bodyHash)
+	bodyHMAC := h.Sum(nil)
+
+	h.Write(urlHash)
+	urlHMAC := h.Sum(nil)
+
+	return bodyHMAC, urlHMAC
 }

@@ -1,6 +1,7 @@
 package formats
 
 import (
+	"crypto/hmac"
 	"encoding/base64"
 	"fmt"
 	"net/url"
@@ -32,6 +33,14 @@ type AuthenticatedConnectionSignature struct {
 	status           string
 	signatureForBody string
 	signatureForURL  string
+}
+
+func (s *AuthenticatedConnectionSignature) GetAttributeInvoking() string {
+	return s.invoking
+}
+
+func (s *AuthenticatedConnectionSignature) GetAttributeFrom() string {
+	return s.from
 }
 
 func (s *AuthenticatedConnectionSignature) EncodeMessage() string {
@@ -67,11 +76,17 @@ func (s *AuthenticatedConnectionSignature) AddParametersForSignature(
 	s.nonce = nonce
 }
 
+func (s *AuthenticatedConnectionSignature) CompareSignatures(signatureForBody []byte, signatureForURL []byte) (bool, bool) {
+	bodyMatch := hmac.Equal([]byte(B64truncate(signatureForBody, hmacLength)), []byte(s.signatureForBody))
+	urlMatch := hmac.Equal([]byte(B64truncate(signatureForURL, hmacLength)), []byte(s.signatureForURL))
+	return bodyMatch, urlMatch
+}
+
 func EncodeSignatureSuffix(
 	signatureForBody []byte, signatureForURL []byte) string {
 	values := url.Values{}
-	conditionallyAdd(&values, attributeSignatureForBody, b64truncate(signatureForBody, hmacLength))
-	conditionallyAdd(&values, attributeSignatureForURL, b64truncate(signatureForURL, hmacLength))
+	conditionallyAdd(&values, attributeSignatureForBody, B64truncate(signatureForBody, hmacLength))
+	conditionallyAdd(&values, attributeSignatureForURL, B64truncate(signatureForURL, hmacLength))
 	return "; " + values.Encode()
 }
 
@@ -133,7 +148,7 @@ func getFirstMapElement(values []string) string {
 	return values[0]
 }
 
-func b64truncate(rawMAC []byte, length int) string {
+func B64truncate(rawMAC []byte, length int) string {
 	b64MAC := base64.RawURLEncoding.EncodeToString(rawMAC)
 	return b64MAC[:length]
 }
