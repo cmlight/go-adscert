@@ -1,6 +1,11 @@
 package formats
 
-import "net/url"
+import (
+	"encoding/base64"
+	"fmt"
+	"net/url"
+	"strings"
+)
 
 const (
 	attributeFrom             = "from"
@@ -13,6 +18,7 @@ const (
 	attributeStatus           = "status"
 	attributeSignatureForBody = "sigb"
 	attributeSignatureForURL  = "sigu"
+	hmacLength                = 12
 )
 
 type AuthenticatedConnectionSignature struct {
@@ -41,19 +47,93 @@ func (s *AuthenticatedConnectionSignature) EncodeMessage() string {
 	return values.Encode()
 }
 
-func (s *AuthenticatedConnectionSignature) EncodeSignatures() string {
+func (s *AuthenticatedConnectionSignature) encodeSignatures() string {
 	values := url.Values{}
 	conditionallyAdd(&values, attributeSignatureForBody, s.signatureForBody)
 	conditionallyAdd(&values, attributeSignatureForURL, s.signatureForURL)
 	return values.Encode()
 }
 
-func (s *AuthenticatedConnectionSignature) EncodeMessageAndSignatures() string {
-	return s.EncodeMessage() + "; " + s.EncodeSignatures()
+func (s *AuthenticatedConnectionSignature) appendSignatures(unsignedMessage string) string {
+	return unsignedMessage + "; " + s.encodeSignatures()
+}
+
+func (s *AuthenticatedConnectionSignature) AddParametersForSignature(
+	fromKey string, to string, toKey string, timestamp string, nonce string) {
+	s.fromKey = fromKey
+	s.to = to
+	s.toKey = toKey
+	s.timestamp = timestamp
+	s.nonce = nonce
+}
+
+func EncodeSignatureSuffix(
+	signatureForBody []byte, signatureForURL []byte) string {
+	values := url.Values{}
+	conditionallyAdd(&values, attributeSignatureForBody, b64truncate(signatureForBody, hmacLength))
+	conditionallyAdd(&values, attributeSignatureForURL, b64truncate(signatureForURL, hmacLength))
+	return "; " + values.Encode()
+}
+
+func NewAuthenticatedConnectionSignature(status string, from string, invoking string) (*AuthenticatedConnectionSignature, error) {
+	s := &AuthenticatedConnectionSignature{}
+
+	s.status = status
+	s.from = from
+	s.invoking = invoking
+
+	return s, nil
+}
+
+func DecodeAuthenticatedConnectionSignature(encodedMessage string) (*AuthenticatedConnectionSignature, error) {
+	splitSignature := strings.Split(encodedMessage, ";")
+	if len(splitSignature) != 2 {
+		return nil, fmt.Errorf("wrong number of signature message tokens")
+	}
+
+	message := strings.TrimSpace(splitSignature[0])
+	sigs := strings.TrimSpace(splitSignature[1])
+
+	values, err := url.ParseQuery(message)
+	if err != nil {
+		return nil, fmt.Errorf("query string parse failure: %v", err)
+	}
+
+	parsedSigs, err := url.ParseQuery(sigs)
+	if err != nil {
+		return nil, fmt.Errorf("signature string parse failure: %v", err)
+	}
+
+	s := &AuthenticatedConnectionSignature{}
+
+	s.from = getFirstMapElement(values[attributeFrom])
+	s.fromKey = getFirstMapElement(values[attributeFromKey])
+	s.invoking = getFirstMapElement(values[attributeInvoking])
+	s.to = getFirstMapElement(values[attributeTo])
+	s.toKey = getFirstMapElement(values[attributeToKey])
+	s.timestamp = getFirstMapElement(values[attributeTimestamp])
+	s.nonce = getFirstMapElement(values[attributeNonce])
+	s.status = getFirstMapElement(values[attributeStatus])
+
+	s.signatureForBody = getFirstMapElement(parsedSigs[attributeSignatureForBody])
+	s.signatureForURL = getFirstMapElement(parsedSigs[attributeSignatureForURL])
+	return s, nil
 }
 
 func conditionallyAdd(values *url.Values, key string, value string) {
 	if value != "" {
 		values.Add(key, value)
 	}
+}
+
+func getFirstMapElement(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func b64truncate(rawMAC []byte, length int) string {
+	b64MAC := base64.RawURLEncoding.EncodeToString(rawMAC)
+	return b64MAC[:length]
 }

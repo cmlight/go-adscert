@@ -1,5 +1,7 @@
 package adscertcounterparty
 
+import "fmt"
+
 type CounterpartyStatus int
 
 const (
@@ -36,4 +38,9 @@ type SignatureCounterparty interface {
 	KeyID() string
 
 	GetStatus() CounterpartyStatus
+}
+
+func (cs CounterpartyStatus) String() string {
+	// TODO: figure out something better and figure out how much info to disclose.
+	return fmt.Sprintf("%d", cs)
 }

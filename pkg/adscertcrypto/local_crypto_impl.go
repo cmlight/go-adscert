@@ -9,10 +9,9 @@ import (
 	"strings"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
+	"github.com/cmlight/go-adscert/pkg/formats"
 	"github.com/golang/glog"
 )
-
-const hmacLength = 12
 
 type AuthenticatedConnectionsSignatory interface {
 	EmbossSigningPackage(request *AuthenticatedConnectionSigningPackage) (*AuthenticatedConnectionSignatureResponse, error)
@@ -49,49 +48,59 @@ func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *A
 	}
 
 	for _, counterparty := range invocationCounterparty.GetSignatureCounterparties() {
-		response.SignatureMessages = append(response.SignatureMessages, s.embossSingleMessage(request, counterparty))
+		message, err := s.embossSingleMessage(request, counterparty)
+		if err != nil {
+			return nil, err
+		}
+		response.SignatureMessages = append(response.SignatureMessages, message)
 	}
 
 	return response, nil
 }
 
-func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *AuthenticatedConnectionSigningPackage, counterparty adscertcounterparty.SignatureCounterparty) string {
+func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *AuthenticatedConnectionSigningPackage, counterparty adscertcounterparty.SignatureCounterparty) (string, error) {
 
-	// Assemble final unsigned message
-	values := url.Values{}
-	values.Add("status", string(counterparty.GetStatus()))
-	values.Add("invoking", request.RequestInfo.InvocationHostname)
-	values.Add("from", s.originCallsign)
-	values.Add("from_key", s.originKeyID)
-
-	var message string
-
-	if counterparty.HasSharedSecret() {
-		values.Add("to", counterparty.GetAdsCertIdentityDomain())
-		values.Add("to_key", counterparty.KeyID())
-		values.Add("timestamp", request.Timestamp)
-		values.Add("nonce", request.Nonce)
-
-		requestKey := append(counterparty.SharedSecret()[:])
-
-		h := hmac.New(sha256.New, requestKey)
-
-		message = values.Encode()
-
-		// Generate final signature
-		h.Write([]byte(message))
-		h.Write(request.RequestInfo.BodyHash[:])
-		bodyHMAC := h.Sum(nil)
-
-		h.Write(request.RequestInfo.URLHash[:])
-		urlHMAC := h.Sum(nil)
-
-		message = message + "; sigb=" + B64truncate(bodyHMAC, hmacLength) + "&sigu=" + B64truncate(urlHMAC, hmacLength)
-	} else {
-		message = values.Encode()
+	acs, err := formats.NewAuthenticatedConnectionSignature(counterparty.GetStatus().String(), request.RequestInfo.InvocationHostname, s.originCallsign)
+	if err != nil {
+		return "", fmt.Errorf("error constructing authenticated connection signature format: %v", err)
 	}
 
-	return message
+	// Assemble final unsigned message
+	// values := url.Values{}
+	// values.Add("status", string(counterparty.GetStatus()))
+	// values.Add("invoking", request.RequestInfo.InvocationHostname)
+	// values.Add("from", s.originCallsign)
+
+	if !counterparty.HasSharedSecret() {
+		return acs.EncodeMessage(), nil
+	}
+	acs.AddParametersForSignature(s.originKeyID,
+		counterparty.GetAdsCertIdentityDomain(),
+		counterparty.KeyID(),
+		request.Timestamp,
+		request.Nonce)
+
+	// values.Add("from_key", s.originKeyID)
+	// values.Add("to", counterparty.GetAdsCertIdentityDomain())
+	// values.Add("to_key", counterparty.KeyID())
+	// values.Add("timestamp", request.Timestamp)
+	// values.Add("nonce", request.Nonce)
+
+	requestKey := append(counterparty.SharedSecret()[:])
+
+	h := hmac.New(sha256.New, requestKey)
+
+	message := acs.EncodeMessage()
+
+	// Generate final signature
+	h.Write([]byte(message))
+	h.Write(request.RequestInfo.BodyHash[:])
+	bodyHMAC := h.Sum(nil)
+
+	h.Write(request.RequestInfo.URLHash[:])
+	urlHMAC := h.Sum(nil)
+
+	return message + formats.EncodeSignatureSuffix(bodyHMAC, urlHMAC), nil
 }
 
 func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error) {
@@ -154,10 +163,10 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 	h := hmac.New(sha256.New, requestKey)
 	h.Write([]byte(message))
 	h.Write(request.RequestInfo.BodyHash[:])
-	bodyHMACPrefix := B64truncate(h.Sum(nil), hmacLength)
+	bodyHMACPrefix := B64truncate(h.Sum(nil), 12)
 
 	h.Write(request.RequestInfo.URLHash[:])
-	urlHMACPrefix := B64truncate(h.Sum(nil), hmacLength)
+	urlHMACPrefix := B64truncate(h.Sum(nil), 12)
 
 	sigb := parsedSigs["sigb"]
 	if len(sigb) != 1 {
