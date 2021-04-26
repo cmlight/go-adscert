@@ -3,6 +3,7 @@ package formats
 import (
 	"crypto/hmac"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -20,6 +21,17 @@ const (
 	attributeSignatureForBody = "sigb"
 	attributeSignatureForURL  = "sigu"
 	hmacLength                = 12
+)
+
+var (
+	ErrParamMissingFrom      = errors.New("parameter missing: from")
+	ErrParamMissingFromKey   = errors.New("parameter missing: fromKey")
+	ErrParamMissingInvoking  = errors.New("parameter missing: invoking")
+	ErrParamMissingTo        = errors.New("parameter missing: to")
+	ErrParamMissingToKey     = errors.New("parameter missing: toKey")
+	ErrParamMissingTimestamp = errors.New("parameter missing: timestamp")
+	ErrParamMissingNonce     = errors.New("parameter missing: nonce")
+	ErrParamMissingStatus    = errors.New("parameter missing: status")
 )
 
 type AuthenticatedConnectionSignature struct {
@@ -68,12 +80,30 @@ func (s *AuthenticatedConnectionSignature) appendSignatures(unsignedMessage stri
 }
 
 func (s *AuthenticatedConnectionSignature) AddParametersForSignature(
-	fromKey string, to string, toKey string, timestamp string, nonce string) {
+	fromKey string, to string, toKey string, timestamp string, nonce string) error {
+	if fromKey == "" {
+		return ErrParamMissingFromKey
+	}
+	if to == "" {
+		return ErrParamMissingTo
+	}
+	if toKey == "" {
+		return ErrParamMissingToKey
+	}
+	if timestamp == "" {
+		return ErrParamMissingTimestamp
+	}
+	if nonce == "" {
+		return ErrParamMissingNonce
+	}
+
 	s.fromKey = fromKey
 	s.to = to
 	s.toKey = toKey
 	s.timestamp = timestamp
 	s.nonce = nonce
+
+	return nil
 }
 
 func (s *AuthenticatedConnectionSignature) CompareSignatures(signatureForBody []byte, signatureForURL []byte) (bool, bool) {
@@ -91,6 +121,16 @@ func EncodeSignatureSuffix(
 }
 
 func NewAuthenticatedConnectionSignature(status string, from string, invoking string) (*AuthenticatedConnectionSignature, error) {
+	if status == "" {
+		return nil, ErrParamMissingStatus
+	}
+	if from == "" {
+		return nil, ErrParamMissingFrom
+	}
+	if invoking == "" {
+		return nil, ErrParamMissingInvoking
+	}
+
 	s := &AuthenticatedConnectionSignature{}
 
 	s.status = status

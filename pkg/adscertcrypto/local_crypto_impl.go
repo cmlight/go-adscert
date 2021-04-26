@@ -63,11 +63,13 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 		return acs.EncodeMessage(), nil
 	}
 
-	acs.AddParametersForSignature(s.originKeyID,
+	if err = acs.AddParametersForSignature(s.originKeyID,
 		counterparty.GetAdsCertIdentityDomain(),
 		counterparty.KeyID(),
 		request.Timestamp,
-		request.Nonce)
+		request.Nonce); err != nil {
+		return "", fmt.Errorf("error adding signature params: %v", err)
+	}
 
 	message := acs.EncodeMessage()
 	bodyHMAC, urlHMAC := generateSignatures(counterparty, []byte(message), request.RequestInfo.BodyHash[:], request.RequestInfo.URLHash[:])
