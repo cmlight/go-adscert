@@ -2,7 +2,6 @@ package formats
 
 import (
 	"crypto/hmac"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/url"
@@ -68,17 +67,6 @@ func (s *AuthenticatedConnectionSignature) EncodeMessage() string {
 	conditionallyAdd(&values, attributeNonce, s.nonce)
 	conditionallyAdd(&values, attributeStatus, s.status)
 	return values.Encode()
-}
-
-func (s *AuthenticatedConnectionSignature) encodeSignatures() string {
-	values := url.Values{}
-	conditionallyAdd(&values, attributeSignatureForBody, s.signatureForBody)
-	conditionallyAdd(&values, attributeSignatureForURL, s.signatureForURL)
-	return values.Encode()
-}
-
-func (s *AuthenticatedConnectionSignature) appendSignatures(unsignedMessage string) string {
-	return unsignedMessage + "; " + s.encodeSignatures()
 }
 
 func (s *AuthenticatedConnectionSignature) AddParametersForSignature(
@@ -175,22 +163,4 @@ func DecodeAuthenticatedConnectionSignature(encodedMessage string) (*Authenticat
 	s.signatureForBody = getFirstMapElement(parsedSigs[attributeSignatureForBody])
 	s.signatureForURL = getFirstMapElement(parsedSigs[attributeSignatureForURL])
 	return s, nil
-}
-
-func conditionallyAdd(values *url.Values, key string, value string) {
-	if value != "" {
-		values.Add(key, value)
-	}
-}
-
-func getFirstMapElement(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
-}
-
-func B64truncate(rawMAC []byte, length int) string {
-	b64MAC := base64.RawURLEncoding.EncodeToString(rawMAC)
-	return b64MAC[:length]
 }

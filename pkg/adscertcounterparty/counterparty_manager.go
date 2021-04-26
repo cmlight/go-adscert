@@ -147,6 +147,10 @@ func (cm *counterpartyManager) LookUpSignatureCounterpartyByCallsign(adsCertCall
 	return &signatureCounterparty{counterpartyInfo: cm.lookup(adsCertCallsign)}, nil
 }
 
+func (cm *counterpartyManager) SynchronizeForTesting() {
+	cm.performUpdateSweep(context.Background())
+}
+
 func (cm *counterpartyManager) startAutoUpdate() {
 	var ctx context.Context
 	ctx, cm.cancel = context.WithCancel(context.Background())
@@ -273,25 +277,3 @@ func buildInitialCounterparty(registerableDomain string) *counterpartyInfo {
 		registerableDomain: registerableDomain,
 	}
 }
-
-// Counterparty represents a peer organization within the programmatic
-// advertising ecosystem who may or may not participate within the ads.cert
-// standard. A Counterparty safely encapsulates the public key material used for
-// authenticating with the entity.
-// type Counterparty interface {
-// 	GetAdsCertIdentityDomain() string
-
-// 	HasSharedSecret() bool
-
-// 	SharedSecret() *[32]byte
-
-// 	KeyID() string
-
-// 	Status() string
-// }
-
-// type CounterpartyManager interface {
-// 	FindCounterpartiesByInvocationHostname(hostname string) ([]Counterparty, error)
-
-// 	FindCounterpartyByCallsign(callsign string) (Counterparty, error)
-// }

@@ -15,11 +15,9 @@ type DemoServer struct {
 func (s *DemoServer) HandleRequest(w http.ResponseWriter, req *http.Request) {
 	signatureHeaders := req.Header["X-Ads-Cert-Auth"]
 
-	// reconstructedURL := req.Method + "://" + req.Host + req.URL.EscapedPath()
-
 	// Make a copy of the URL struct so that we can reconstruct what the client sent.
 	reconstructedURL := *req.URL
-	reconstructedURL.Scheme = "http" // Protocol only valid over HTTPS TODO FIXME
+	reconstructedURL.Scheme = "http" // TODO: Fix so that this can handle HTTPS too.
 	reconstructedURL.Host = req.Host
 
 	body, err := ioutil.ReadAll(req.Body)

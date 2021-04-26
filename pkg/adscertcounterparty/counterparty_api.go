@@ -20,6 +20,8 @@ type CounterpartyAPI interface {
 	LookUpInvocationCounterpartyByHostname(invocationHostname string) (InvocationCounterparty, error)
 
 	LookUpSignatureCounterpartyByCallsign(adsCertCallsign string) (SignatureCounterparty, error)
+
+	SynchronizeForTesting()
 }
 
 type InvocationCounterparty interface {

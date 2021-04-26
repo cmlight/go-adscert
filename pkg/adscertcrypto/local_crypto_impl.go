@@ -13,6 +13,9 @@ import (
 type AuthenticatedConnectionsSignatory interface {
 	EmbossSigningPackage(request *AuthenticatedConnectionSigningPackage) (*AuthenticatedConnectionSignatureResponse, error)
 	VerifySigningPackage(request *AuthenticatedConnectionVerificationPackage) (*AuthenticatedConnectionVerificationResponse, error)
+
+	// TODO: Design a better way to do this testing hook.
+	SynchronizeForTesting(invocationTLDPlusOne string)
 }
 
 func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, originKeyID string) AuthenticatedConnectionsSignatory {
@@ -29,6 +32,11 @@ type localAuthenticatedConnectionsSignatory struct {
 	originKeyID    string // TODO: clean this up
 
 	counterpartyManager adscertcounterparty.CounterpartyAPI
+}
+
+func (s *localAuthenticatedConnectionsSignatory) SynchronizeForTesting(invocationTLDPlusOne string) {
+	s.counterpartyManager.LookUpInvocationCounterpartyByHostname(invocationTLDPlusOne)
+	s.counterpartyManager.SynchronizeForTesting()
 }
 
 func (s *localAuthenticatedConnectionsSignatory) EmbossSigningPackage(request *AuthenticatedConnectionSigningPackage) (*AuthenticatedConnectionSignatureResponse, error) {
