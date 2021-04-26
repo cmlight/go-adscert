@@ -184,8 +184,18 @@ func TestNewAuthenticatedConnectionSignature(t *testing.T) {
 				t.Errorf("AddParametersForSignature() %s error check: got %v, want %v", tC.desc, gotErr, tC.wantAddParamsForSignatureErr)
 			}
 
-			if msg := acs.EncodeMessage(); msg != tC.wantUnsignedExtendedMessage {
+			msg := acs.EncodeMessage()
+			if msg != tC.wantUnsignedExtendedMessage {
 				t.Errorf("EncodeMessage() %s (UnsignedExtendedMessage): got %q, want %q", tC.desc, msg, tC.wantUnsignedExtendedMessage)
+			}
+
+			signedMessage := msg + formats.EncodeSignatureSuffix([]byte(sampleBodyHMAC), []byte(sampleURLHMAC))
+			parsedACS, err := formats.DecodeAuthenticatedConnectionSignature(signedMessage)
+			if err != nil {
+				t.Fatalf("Not expecting error for test: %v", err)
+			}
+			if gotParsed := parsedACS.EncodeMessage(); gotParsed != msg {
+				t.Errorf("DecodeAuthenticatedConnectionSignature(): got %q, want %q", gotParsed, msg)
 			}
 		})
 	}

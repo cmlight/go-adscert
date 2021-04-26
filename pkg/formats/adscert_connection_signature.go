@@ -32,6 +32,8 @@ var (
 	ErrParamMissingTimestamp = errors.New("parameter missing: timestamp")
 	ErrParamMissingNonce     = errors.New("parameter missing: nonce")
 	ErrParamMissingStatus    = errors.New("parameter missing: status")
+
+	ErrACSWrongNumParams = errors.New("wrong authenticated connection num params")
 )
 
 type AuthenticatedConnectionSignature struct {
@@ -143,7 +145,7 @@ func NewAuthenticatedConnectionSignature(status string, from string, invoking st
 func DecodeAuthenticatedConnectionSignature(encodedMessage string) (*AuthenticatedConnectionSignature, error) {
 	splitSignature := strings.Split(encodedMessage, ";")
 	if len(splitSignature) != 2 {
-		return nil, fmt.Errorf("wrong number of signature message tokens")
+		return nil, ErrACSWrongNumParams
 	}
 
 	message := strings.TrimSpace(splitSignature[0])
