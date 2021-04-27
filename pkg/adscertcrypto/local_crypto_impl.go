@@ -18,18 +18,15 @@ type AuthenticatedConnectionsSignatory interface {
 	SynchronizeForTesting(invocationTLDPlusOne string)
 }
 
-func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, originKeyID string) AuthenticatedConnectionsSignatory {
-	_, privateKey := GenerateFakeKeyPairFromDomainNameForTesting(originCallsign)
+func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, privateKeyBase64Strings []string) AuthenticatedConnectionsSignatory {
 	return &localAuthenticatedConnectionsSignatory{
-		counterpartyManager: adscertcounterparty.NewCounterpartyManager(NewFakeKeyGeneratingDnsResolver(), privateKey),
+		counterpartyManager: adscertcounterparty.NewCounterpartyManager(NewFakeKeyGeneratingDnsResolver(), privateKeyBase64Strings),
 		originCallsign:      originCallsign,
-		originKeyID:         originKeyID,
 	}
 }
 
 type localAuthenticatedConnectionsSignatory struct {
 	originCallsign string
-	originKeyID    string // TODO: clean this up
 
 	counterpartyManager adscertcounterparty.CounterpartyAPI
 }
@@ -67,13 +64,19 @@ func (s *localAuthenticatedConnectionsSignatory) embossSingleMessage(request *Au
 		return "", fmt.Errorf("error constructing authenticated connection signature format: %v", err)
 	}
 
+	glog.Infof("Counterparty info: %+v", counterparty)
+
 	if !counterparty.HasSharedSecret() {
 		return acs.EncodeMessage(), nil
 	}
 
-	if err = acs.AddParametersForSignature(s.originKeyID,
+	sharedSecret := counterparty.SharedSecret()
+
+	glog.Infof("trying signature %s %s %s", sharedSecret.LocalKeyID(), counterparty.GetAdsCertIdentityDomain(), sharedSecret.RemoteKeyID())
+
+	if err = acs.AddParametersForSignature(sharedSecret.LocalKeyID(),
 		counterparty.GetAdsCertIdentityDomain(),
-		counterparty.KeyID(),
+		sharedSecret.RemoteKeyID(),
 		request.Timestamp,
 		request.Nonce); err != nil {
 		return "", fmt.Errorf("error adding signature params: %v", err)
@@ -97,8 +100,8 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 	// Validate invocation hostname matches request
 	if acs.GetAttributeInvoking() != request.RequestInfo.InvocationHostname {
 		// TODO: Unrelated signature error
-		glog.Info("unrelated signature")
-		return response, fmt.Errorf("Unrelated signature error")
+		glog.Info("unrelated signature %s versus %s", acs.GetAttributeInvoking(), request.RequestInfo.InvocationHostname)
+		return response, fmt.Errorf("unrelated signature %s versus %s", acs.GetAttributeInvoking(), request.RequestInfo.InvocationHostname)
 	}
 
 	// Look up originator by callsign
@@ -121,7 +124,7 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 }
 
 func generateSignatures(counterparty adscertcounterparty.SignatureCounterparty, message []byte, bodyHash []byte, urlHash []byte) ([]byte, []byte) {
-	h := hmac.New(sha256.New, counterparty.SharedSecret()[:])
+	h := hmac.New(sha256.New, counterparty.SharedSecret().Secret()[:])
 
 	h.Write([]byte(message))
 	h.Write(bodyHash)

@@ -2,6 +2,7 @@ package formats
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/url"
 )
 
@@ -21,4 +22,21 @@ func getFirstMapElement(values []string) string {
 		return ""
 	}
 	return values[0]
+}
+
+func ParseBase64EncodedKey(encodedKey string, length int) ([]byte, error) {
+	publicKeyBytes, err := base64.RawURLEncoding.DecodeString(encodedKey)
+	if err != nil {
+		return nil, fmt.Errorf("public key base64 decode failed: %v", err)
+	}
+
+	if len(publicKeyBytes) != length {
+		return nil, ErrWrongKeySize
+	}
+
+	return publicKeyBytes, nil
+}
+
+func EncodeKeyBase64(keyBytes []byte) string {
+	return base64.RawURLEncoding.EncodeToString(keyBytes)
 }

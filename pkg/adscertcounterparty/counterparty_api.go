@@ -35,11 +35,15 @@ type SignatureCounterparty interface {
 
 	HasSharedSecret() bool
 
-	SharedSecret() *[32]byte
-
-	KeyID() string
+	SharedSecret() SharedSecret
 
 	GetStatus() CounterpartyStatus
+}
+
+type SharedSecret interface {
+	LocalKeyID() string
+	RemoteKeyID() string
+	Secret() *[32]byte
 }
 
 func (cs CounterpartyStatus) String() string {

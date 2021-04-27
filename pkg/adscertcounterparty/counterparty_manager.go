@@ -2,13 +2,12 @@ package adscertcounterparty
 
 import (
 	"context"
-	"encoding/base64"
 	"net"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/cmlight/go-adscert/pkg/formats"
 	"github.com/golang/glog"
 )
 
@@ -43,9 +42,12 @@ type counterpartyMap map[string]*counterpartyInfo
 
 type counterpartyInfo struct {
 	registerableDomain  string
-	currentPublicKey    x25519PublicKey
-	currentSharedSecret x25519SharedSecret
+	currentPublicKey    keyAlias
+	currentSharedSecret keyTupleAlias
 	lastUpdateTime      time.Time
+
+	allPublicKeys    keyMap
+	allSharedSecrets keyTupleMap
 
 	signatureCounterpartyDomains []string
 }
@@ -57,24 +59,31 @@ type counterpartyManager struct {
 	cancel         context.CancelFunc
 	wakeUp         chan struct{}
 
-	myPrivateKey x25519PrivateKey
+	myPrivateKeys     keyMap
+	currentPrivateKey keyAlias
 
 	dnsResolver DNSResolver
 }
 
-func NewCounterpartyManager(dnsResolver DNSResolver, privateKey [32]byte) CounterpartyAPI {
+func NewCounterpartyManager(dnsResolver DNSResolver, base64PrivateKeys []string) CounterpartyAPI {
 	cm := &counterpartyManager{
 		ticker:      time.NewTicker(30 * time.Second), // Make this configurable.
 		wakeUp:      make(chan struct{}, 1),
 		dnsResolver: dnsResolver,
-		myPrivateKey: x25519PrivateKey{
-			privateKey:  privateKey,
-			initialized: true,
-		},
 	}
 
 	// TODO: properly read in private key.
-	// cm.myPrivateKey.initialized = true
+	myPrivateKeys, err := privateKeysToKeyMap(base64PrivateKeys)
+	if err != nil {
+		glog.Fatalf("Error parsing private keys: %v", err)
+	}
+	cm.myPrivateKeys = myPrivateKeys
+
+	// TODO: properly be able to identify the current private key to use
+	for _, privateKey := range cm.myPrivateKeys {
+		cm.currentPrivateKey = privateKey.alias
+		break
+	}
 
 	cm.counterparties.Store(counterpartyMap{})
 	cm.startAutoUpdate()
@@ -113,12 +122,16 @@ func (c *signatureCounterparty) GetStatus() CounterpartyStatus {
 }
 
 func (c *signatureCounterparty) HasSharedSecret() bool {
-	return c.counterpartyInfo.currentSharedSecret.initialized
+	glog.Infof("current shared secret: %+v", c.counterpartyInfo.currentSharedSecret)
+	return c.counterpartyInfo.allSharedSecrets[c.counterpartyInfo.currentSharedSecret] != nil
 }
 
-// TODO: change this
-func (c *signatureCounterparty) SharedSecret() *[32]byte {
-	return &c.counterpartyInfo.currentSharedSecret.sharedSecret
+func (c *signatureCounterparty) SharedSecret() SharedSecret {
+	if !c.HasSharedSecret() {
+		return nil
+	}
+	sharedSecret := c.counterpartyInfo.allSharedSecrets[c.counterpartyInfo.currentSharedSecret]
+	return SharedSecret(sharedSecret)
 }
 
 func (c *signatureCounterparty) KeyID() string {
@@ -187,23 +200,33 @@ func (cm *counterpartyManager) performUpdateSweep(ctx context.Context) {
 			} else {
 				glog.Infof("Found text record for %s in %v: %v", domain, time.Now().Sub(start), records)
 
-				// TODO: do this properly
-				fixmeTextRecordConcat := strings.Join(records, "")
-
-				decodedBytes, err := base64.RawURLEncoding.DecodeString(fixmeTextRecordConcat)
+				// Assume one and only one TXT record
+				adsCertKeys, err := formats.DecodeAdsCertKeysRecord(records[0])
 				if err != nil {
-					glog.Warningf("Error decoding b64 key %s for domain %s", fixmeTextRecordConcat, currentCounterpartyState.registerableDomain)
-				}
-				copy(currentCounterpartyState.currentPublicKey.publicKey[:], decodedBytes)
-				currentCounterpartyState.currentPublicKey.initialized = true
+					glog.Warning("Error parsing ads.cert record for %s: %v", domain, err)
+				} else if len(adsCertKeys.PublicKeys) > 0 {
+					currentCounterpartyState.allPublicKeys = asKeyMap(*adsCertKeys)
+					currentCounterpartyState.currentPublicKey = keyAlias(adsCertKeys.PublicKeys[0].KeyAlias)
 
-				sharedSecret, err := calculateSharedSecret(cm.myPrivateKey, currentCounterpartyState.currentPublicKey)
-				if err != nil {
-					glog.Warningf("Error calculating shared secret for domain %s: %v", domain, err)
-				} else {
-					currentCounterpartyState.currentSharedSecret = sharedSecret
+					currentCounterpartyState.allSharedSecrets = keyTupleMap{}
+					currentCounterpartyState.currentSharedSecret = keyTupleAlias{}
 				}
 			}
+
+			for _, myKey := range cm.myPrivateKeys {
+				for _, theirKey := range currentCounterpartyState.allPublicKeys {
+					keyTupleAlias := newKeyTupleAlias(myKey.alias, theirKey.alias)
+					if currentCounterpartyState.allSharedSecrets[keyTupleAlias] == nil {
+						currentCounterpartyState.allSharedSecrets[keyTupleAlias], err = calculateSharedSecret(myKey, theirKey)
+					}
+
+					// if cm.currentPrivateKey == myKey.alias && currentCounterpartyState.currentPublicKey == theirKey.alias {
+					// 	currentCounterpartyState.currentSharedSecret = keyTupleAlias
+					// }
+				}
+			}
+
+			currentCounterpartyState.currentSharedSecret = newKeyTupleAlias(cm.currentPrivateKey, currentCounterpartyState.currentPublicKey)
 
 			currentCounterpartyState.lastUpdateTime = time.Now()
 			cm.update(domain, currentCounterpartyState)

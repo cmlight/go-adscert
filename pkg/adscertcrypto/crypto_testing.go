@@ -4,10 +4,29 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"fmt"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
+	"github.com/golang/glog"
 	"golang.org/x/crypto/curve25519"
 )
+
+func GenerateFakePrivateKeysForTesting(adscertCallsign string) []string {
+	_, primaryPrivateKey := GenerateFakeKeyPairFromDomainNameForTesting(adscertCallsign)
+	_, alternatePrivateKey := GenerateFakeKeyPairFromDomainNameForTesting("alternate." + adscertCallsign)
+	return []string{
+		base64.RawURLEncoding.EncodeToString(primaryPrivateKey[:]),
+		base64.RawURLEncoding.EncodeToString(alternatePrivateKey[:])}
+}
+
+func GenerateFakeAdsCertRecordForTesting(adscertCallsign string) string {
+	primaryPublicKey, _ := GenerateFakeKeyPairFromDomainNameForTesting(adscertCallsign)
+	alternatePublicKey, _ := GenerateFakeKeyPairFromDomainNameForTesting("alternate." + adscertCallsign)
+
+	return fmt.Sprintf("v=adcrtd k=x25519 h=sha256 p=%s p=%s",
+		base64.RawURLEncoding.EncodeToString(primaryPublicKey[:]),
+		base64.RawURLEncoding.EncodeToString(alternatePublicKey[:]))
+}
 
 func GenerateFakeKeyPairFromDomainNameForTesting(adscertCallsign string) ([32]byte, [32]byte) {
 	privateKey := sha256.Sum256([]byte(adscertCallsign))
@@ -19,8 +38,9 @@ func GenerateFakeKeyPairFromDomainNameForTesting(adscertCallsign string) ([32]by
 type keyGeneratingDNSResolver struct{}
 
 func (r *keyGeneratingDNSResolver) LookupTXT(ctx context.Context, name string) ([]string, error) {
-	publicKey, _ := GenerateFakeKeyPairFromDomainNameForTesting(name)
-	return []string{base64.RawURLEncoding.EncodeToString(publicKey[:])}, nil
+	adsCertRecord := GenerateFakeAdsCertRecordForTesting(name)
+	glog.Infof("Serving fake DNS record for %s: %s", name, adsCertRecord)
+	return []string{adsCertRecord}, nil
 }
 
 func NewFakeKeyGeneratingDnsResolver() adscertcounterparty.DNSResolver {

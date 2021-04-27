@@ -25,9 +25,11 @@ func main() {
 
 	glog.Info("Starting demo client.")
 
+	privateKeysBase64 := adscertcrypto.GenerateFakePrivateKeysForTesting(*originCallsign)
+
 	demoClient := clientsample.DemoClient{
 		Signer: adscert.NewAuthenticatedConnectionsSigner(
-			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*originCallsign, "keyplaceholder")),
+			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*originCallsign, privateKeysBase64)),
 
 		Method:         *method,
 		DestinationURL: *destinationURL,

@@ -9,7 +9,9 @@ import (
 )
 
 func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
-	signatory := adscertcrypto.NewLocalAuthenticatedConnectionsSignatory("origin-signer.com", "a1b2c3")
+	adsCertCallsign := "origin-signer.com"
+	signatory := adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(
+		adsCertCallsign, adscertcrypto.GenerateFakePrivateKeysForTesting(adsCertCallsign))
 	signer := adscert.NewAuthenticatedConnectionsSigner(signatory)
 
 	// TODO: Add ability to seed PRNG for nonce and clock to generate deterministic results.
@@ -34,7 +36,9 @@ func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 }
 
 func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
-	signatory := adscertcrypto.NewLocalAuthenticatedConnectionsSignatory("destination-verifier.com", "w1x2y3")
+	adsCertCallsign := "destination-verifier.com"
+	signatory := adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(
+		adsCertCallsign, adscertcrypto.GenerateFakePrivateKeysForTesting(adsCertCallsign))
 	signer := adscert.NewAuthenticatedConnectionsSigner(signatory)
 
 	signatory.SynchronizeForTesting("origin-signer.com")
@@ -42,7 +46,7 @@ func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 	// Determine the request parameters to sign.
 	// Destination URL must be assembled by application based on path, HTTP Host header.
 	// TODO: assemble sample code to show this based on HTTP package.
-	destinationURL := "https://ads.origin-signer.com/request-ads"
+	destinationURL := "https://ads.destination-verifier.com/request-ads"
 	body := []byte("{'id': '12345'}")
 	messageToVerify := "from=origin-signer.com&from_key=a1b2c3&invoking=destination-verifier.com&nonce=ZRC3FNU3skLS&status=0&timestamp=210426T163109&to=destination-verifier.com&to_key=a1b2c3; sigb=HLIYY-dTGn6D&sigu=Sbe5OWsUlFXU"
 
@@ -57,5 +61,5 @@ func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 	}
 
 	fmt.Printf("Signature verified? %v %v", verification.BodyValid, verification.URLValid)
-	// Output: Signature verified? true, true
+	// Output: Signature verified? true true
 }

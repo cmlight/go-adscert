@@ -19,9 +19,11 @@ func main() {
 
 	glog.Info("Starting demo server.")
 
+	privateKeysBase64 := adscertcrypto.GenerateFakePrivateKeysForTesting(*hostCallsign)
+
 	demoServer := &serversample.DemoServer{
 		Signer: adscert.NewAuthenticatedConnectionsSigner(
-			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*hostCallsign, "keyplaceholder")),
+			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*hostCallsign, privateKeysBase64)),
 	}
 	http.HandleFunc("/request", demoServer.HandleRequest)
 	http.ListenAndServe(":8090", nil)
