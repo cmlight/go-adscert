@@ -68,7 +68,17 @@ func TestDecodeAdsCertKeysRecord(t *testing.T) {
 		},
 		{
 			desc:            "unknown parameter (one key)",
-			input:           "v=adcrtd k=x25519 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA x=y",
+			input:           "v=adcrtd k=x25519 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA x=v",
+			wantAdsCertKeys: wantAdsCertWithOneKey,
+		},
+		{
+			desc:            "unknown parameter (stray token)",
+			input:           "v=adcrtd k=x25519 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA xv",
+			wantAdsCertKeys: wantAdsCertWithOneKey,
+		},
+		{
+			desc:            "unknown parameter (multiple equals symbols)",
+			input:           "v=adcrtd k=x25519 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA x=v=v",
 			wantAdsCertKeys: wantAdsCertWithOneKey,
 		},
 		{
