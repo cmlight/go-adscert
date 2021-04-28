@@ -89,12 +89,27 @@ func TestDecodeAdsCertKeysRecord(t *testing.T) {
 		{
 			desc:    "missing key algorithm",
 			input:   "v=adcrtd h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA",
-			wantErr: formats.ErrKeyAlgorithmMissing,
+			wantErr: formats.ErrKeyAlgorithmWrongNumber,
 		},
 		{
 			desc:    "missing hash algorithm",
 			input:   "v=adcrtd k=x25519 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA",
-			wantErr: formats.ErrHashAlgorithmMissing,
+			wantErr: formats.ErrHashAlgorithmWrongNumber,
+		},
+		{
+			desc:    "too many version (reported as out-of-order)",
+			input:   "v=adcrtd v=adcrtd k=x25519 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA",
+			wantErr: formats.ErrVersionPrefixOutOfOrder,
+		},
+		{
+			desc:    "too many key algorithm",
+			input:   "v=adcrtd k=x25519 k=x25519 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA",
+			wantErr: formats.ErrKeyAlgorithmWrongNumber,
+		},
+		{
+			desc:    "too many hash algorithm",
+			input:   "v=adcrtd k=x25519 h=sha256 h=sha256 p=Bm8J1RW3RxHp_-mx3lE7eAuYObfALvwurVjXtcaYFVA",
+			wantErr: formats.ErrHashAlgorithmWrongNumber,
 		},
 		{
 			desc:    "missing public keys",

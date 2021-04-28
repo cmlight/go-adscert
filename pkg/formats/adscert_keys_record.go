@@ -6,18 +6,18 @@ import (
 )
 
 var (
-	ErrEmptyInput              = errors.New("empty input")
-	ErrVersionPrefixOutOfOrder = errors.New("version prefix out of order")
-	ErrVersionUnknown          = errors.New("unknown version string")
-	ErrVersionMissing          = errors.New("missing version string")
-	ErrKeyAlgorithmMissing     = errors.New("key algorithm missing")
-	ErrHashAlgorithmMissing    = errors.New("hash algorithm missing")
-	ErrPublicKeysMissing       = errors.New("public keys missing")
-	ErrWrongKeySize            = errors.New("wrong key size")
-	ErrZeroValueKey            = errors.New("zero-value key")
-	ErrEmptyKey                = errors.New("empty value for key")
-	ErrUnsupportedAlgorithm    = errors.New("unsupported key algorithm")
-	ErrBase64DecodeFailure     = errors.New("(base64 decode failure)")
+	ErrEmptyInput               = errors.New("empty input")
+	ErrVersionPrefixOutOfOrder  = errors.New("version prefix out of order")
+	ErrVersionUnknown           = errors.New("unknown version string")
+	ErrVersionMissing           = errors.New("missing version string or too many")
+	ErrKeyAlgorithmWrongNumber  = errors.New("key algorithm missing or too many")
+	ErrHashAlgorithmWrongNumber = errors.New("hash algorithm missing or too many")
+	ErrPublicKeysMissing        = errors.New("public keys missing")
+	ErrWrongKeySize             = errors.New("wrong key size")
+	ErrZeroValueKey             = errors.New("zero-value key")
+	ErrEmptyKey                 = errors.New("empty value for key")
+	ErrUnsupportedAlgorithm     = errors.New("unsupported key algorithm")
+	ErrBase64DecodeFailure      = errors.New("(base64 decode failure)")
 )
 
 type ParsedPublicKey struct {
@@ -31,7 +31,7 @@ type AdsCertKeys struct {
 
 func DecodeAdsCertKeysRecord(keysRecord string) (*AdsCertKeys, error) {
 	parsedKeys := &AdsCertKeys{}
-	var versionOK, keyAlgoOK, hashAlgoOK bool
+	var versionOK, keyAlgoOK, hashAlgoOK int
 	keysRecord = strings.TrimSpace(keysRecord)
 
 	if keysRecord == "" {
@@ -57,16 +57,16 @@ func DecodeAdsCertKeysRecord(keysRecord string) (*AdsCertKeys, error) {
 			if value != "adcrtd" {
 				return nil, ErrVersionUnknown
 			}
-			versionOK = true
+			versionOK++
 		case "k":
 			if value != "x25519" {
 				return nil, ErrUnsupportedAlgorithm
 			}
-			keyAlgoOK = true
+			keyAlgoOK++
 		case "h":
 			for _, algo := range strings.Split(value, ":") {
 				if algo == "sha256" {
-					hashAlgoOK = true
+					hashAlgoOK++
 				}
 				break
 			}
@@ -82,14 +82,14 @@ func DecodeAdsCertKeysRecord(keysRecord string) (*AdsCertKeys, error) {
 				})
 		}
 	}
-	if !versionOK {
+	if versionOK != 1 {
 		return nil, ErrVersionMissing
 	}
-	if !keyAlgoOK {
-		return nil, ErrKeyAlgorithmMissing
+	if keyAlgoOK != 1 {
+		return nil, ErrKeyAlgorithmWrongNumber
 	}
-	if !hashAlgoOK {
-		return nil, ErrHashAlgorithmMissing
+	if hashAlgoOK != 1 {
+		return nil, ErrHashAlgorithmWrongNumber
 	}
 	if len(parsedKeys.PublicKeys) == 0 {
 		return nil, ErrPublicKeysMissing
