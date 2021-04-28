@@ -25,9 +25,22 @@ func getFirstMapElement(values []string) string {
 }
 
 func ParseBase64EncodedKey(encodedKey string, length int) ([]byte, error) {
+	if encodedKey == "" {
+		return nil, ErrEmptyKey
+	}
 	publicKeyBytes, err := base64.RawURLEncoding.DecodeString(encodedKey)
 	if err != nil {
-		return nil, fmt.Errorf("public key base64 decode failed: %v", err)
+		return nil, fmt.Errorf("public key base64 decode failed: %v %w", err, ErrBase64DecodeFailure)
+	}
+	var hasValue bool
+	for _, v := range publicKeyBytes {
+		if v > 0 {
+			hasValue = true
+			break
+		}
+	}
+	if !hasValue {
+		return nil, ErrZeroValueKey
 	}
 
 	if len(publicKeyBytes) != length {
