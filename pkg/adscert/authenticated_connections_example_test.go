@@ -11,7 +11,7 @@ import (
 func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 	adsCertCallsign := "origin-signer.com"
 	signatory := adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(
-		adsCertCallsign, adscertcrypto.GenerateFakePrivateKeysForTesting(adsCertCallsign))
+		adsCertCallsign, adscertcrypto.GenerateFakePrivateKeysForTesting(adsCertCallsign), true)
 	signer := adscert.NewAuthenticatedConnectionsSigner(signatory)
 
 	// TODO: Add ability to seed PRNG for nonce and clock to generate deterministic results.
@@ -38,7 +38,7 @@ func ExampleAuthenticatedConnectionsSigner_SignAuthenticatedConnection() {
 func ExampleAuthenticatedConnectionsSigner_VerifyAuthenticatedConnection() {
 	adsCertCallsign := "destination-verifier.com"
 	signatory := adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(
-		adsCertCallsign, adscertcrypto.GenerateFakePrivateKeysForTesting(adsCertCallsign))
+		adsCertCallsign, adscertcrypto.GenerateFakePrivateKeysForTesting(adsCertCallsign), true)
 	signer := adscert.NewAuthenticatedConnectionsSigner(signatory)
 
 	signatory.SynchronizeForTesting("origin-signer.com")

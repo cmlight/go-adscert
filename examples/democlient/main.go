@@ -18,6 +18,9 @@ var (
 	frequency      = flag.Duration("frequency", 10*time.Second, "Frequency to invoke the specified URL")
 
 	originCallsign = flag.String("origin_callsign", "", "ads.cert callsign for the originating party")
+
+	useFakeKeyGeneratingDNS = flag.Bool("use_fake_key_generating_dns_for_testing", false,
+		"When enabled, this code skips performing real DNS lookups and instead simulates DNS-based keys by generating a key pair based on the domain name.")
 )
 
 func main() {
@@ -29,7 +32,7 @@ func main() {
 
 	demoClient := clientsample.DemoClient{
 		Signer: adscert.NewAuthenticatedConnectionsSigner(
-			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*originCallsign, privateKeysBase64)),
+			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*originCallsign, privateKeysBase64, *useFakeKeyGeneratingDNS)),
 
 		Method:         *method,
 		DestinationURL: *destinationURL,

@@ -11,7 +11,9 @@ import (
 )
 
 var (
-	hostCallsign = flag.String("host_callsign", "", "ads.cert callsign for the originating party")
+	hostCallsign            = flag.String("host_callsign", "", "ads.cert callsign for the originating party")
+	useFakeKeyGeneratingDNS = flag.Bool("use_fake_key_generating_dns_for_testing", false,
+		"When enabled, this code skips performing real DNS lookups and instead simulates DNS-based keys by generating a key pair based on the domain name.")
 )
 
 func main() {
@@ -23,7 +25,7 @@ func main() {
 
 	demoServer := &serversample.DemoServer{
 		Signer: adscert.NewAuthenticatedConnectionsSigner(
-			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*hostCallsign, privateKeysBase64)),
+			adscertcrypto.NewLocalAuthenticatedConnectionsSignatory(*hostCallsign, privateKeysBase64, *useFakeKeyGeneratingDNS)),
 	}
 	http.HandleFunc("/request", demoServer.HandleRequest)
 	http.ListenAndServe(":8090", nil)

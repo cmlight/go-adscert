@@ -3,17 +3,11 @@ package adscertcrypto
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"flag"
 	"fmt"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
 	"github.com/cmlight/go-adscert/pkg/formats"
 	"github.com/golang/glog"
-)
-
-var (
-	useFakeKeyGeneratingDNS = flag.Bool("use_fake_key_generating_dns_for_testing", false,
-		"When enabled, this code skips performing real DNS lookups and instead simulates DNS-based keys by generating a key pair based on the domain name.")
 )
 
 type AuthenticatedConnectionsSignatory interface {
@@ -24,9 +18,9 @@ type AuthenticatedConnectionsSignatory interface {
 	SynchronizeForTesting(invocationTLDPlusOne string)
 }
 
-func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, privateKeyBase64Strings []string) AuthenticatedConnectionsSignatory {
+func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, privateKeyBase64Strings []string, useFakeKeyGeneratingDNS bool) AuthenticatedConnectionsSignatory {
 	var dnsResolver adscertcounterparty.DNSResolver
-	if *useFakeKeyGeneratingDNS {
+	if useFakeKeyGeneratingDNS {
 		dnsResolver = NewFakeKeyGeneratingDnsResolver()
 	} else {
 		dnsResolver = adscertcounterparty.NewRealDnsResolver()
