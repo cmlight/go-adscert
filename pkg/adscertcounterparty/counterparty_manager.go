@@ -193,17 +193,39 @@ func (cm *counterpartyManager) performUpdateSweep(ctx context.Context) {
 			glog.Infof("Trying to do an update for domain %s", domain)
 
 			start := time.Now()
-			subdomain := "_delivery._adscert." + domain
-			records, err := cm.dnsResolver.LookupTXT(ctx, subdomain)
+			baseSubdomain := "_adscert." + domain
+
+			baseSubdomainRecords, err := cm.dnsResolver.LookupTXT(ctx, baseSubdomain)
 			if err != nil {
-				glog.Warningf("Error looking up record for %s in %v: %v", subdomain, time.Now().Sub(start), err)
+				glog.Warningf("Error looking up record for %s in %v: %v", baseSubdomainRecords, time.Now().Sub(start), err)
 			} else {
-				glog.Infof("Found text record for %s in %v: %v", subdomain, time.Now().Sub(start), records)
+				glog.Infof("Found text record for %s in %v: %v", baseSubdomain, time.Now().Sub(start), baseSubdomainRecords)
+
+				adsCertPolicy, err := formats.DecodeAdsCertPolicyRecord(baseSubdomainRecords[0])
+				if err != nil {
+					glog.Warningf("Error parsing ads.cert policy record for %s: %v", baseSubdomain, err)
+				} else {
+					// TODO: Evaluate adding support for multiple signature domains.
+					currentCounterpartyState.signatureCounterpartyDomains = []string{adsCertPolicy.CanonicalCallsignDomain}
+
+					// Notify that we are interested in this domain if it's the first time we've seen it.
+					cm.lookup(adsCertPolicy.CanonicalCallsignDomain)
+				}
+			}
+
+			start = time.Now()
+			deliverySubdomain := "_delivery." + baseSubdomain
+			deliverySubdomainRecords, err := cm.dnsResolver.LookupTXT(ctx, deliverySubdomain)
+
+			if err != nil {
+				glog.Warningf("Error looking up record for %s in %v: %v", deliverySubdomain, time.Now().Sub(start), err)
+			} else {
+				glog.Infof("Found text record for %s in %v: %v", deliverySubdomain, time.Now().Sub(start), deliverySubdomainRecords)
 
 				// Assume one and only one TXT record
-				adsCertKeys, err := formats.DecodeAdsCertKeysRecord(records[0])
+				adsCertKeys, err := formats.DecodeAdsCertKeysRecord(deliverySubdomainRecords[0])
 				if err != nil {
-					glog.Warningf("Error parsing ads.cert record for %s: %v", subdomain, err)
+					glog.Warningf("Error parsing ads.cert record for %s: %v", deliverySubdomain, err)
 				} else if len(adsCertKeys.PublicKeys) > 0 {
 					currentCounterpartyState.allPublicKeys = asKeyMap(*adsCertKeys)
 					currentCounterpartyState.currentPublicKey = keyAlias(adsCertKeys.PublicKeys[0].KeyAlias)
