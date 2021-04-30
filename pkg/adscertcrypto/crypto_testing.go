@@ -12,8 +12,8 @@ import (
 )
 
 func GenerateFakePrivateKeysForTesting(adscertCallsign string) []string {
-	_, primaryPrivateKey := GenerateFakeKeyPairFromDomainNameForTesting(adscertCallsign)
-	_, alternatePrivateKey := GenerateFakeKeyPairFromDomainNameForTesting("alternate." + adscertCallsign)
+	_, primaryPrivateKey := GenerateFakeKeyPairFromDomainNameForTesting("_delivery._adscert." + adscertCallsign)
+	_, alternatePrivateKey := GenerateFakeKeyPairFromDomainNameForTesting("alternate._delivery._adscert." + adscertCallsign)
 	return []string{
 		base64.RawURLEncoding.EncodeToString(primaryPrivateKey[:]),
 		base64.RawURLEncoding.EncodeToString(alternatePrivateKey[:])}

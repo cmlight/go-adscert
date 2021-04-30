@@ -3,11 +3,17 @@ package adscertcrypto
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"flag"
 	"fmt"
 
 	"github.com/cmlight/go-adscert/pkg/adscertcounterparty"
 	"github.com/cmlight/go-adscert/pkg/formats"
 	"github.com/golang/glog"
+)
+
+var (
+	useFakeKeyGeneratingDNS = flag.Bool("use_fake_key_generating_dns_for_testing", false,
+		"When enabled, this code skips performing real DNS lookups and instead simulates DNS-based keys by generating a key pair based on the domain name.")
 )
 
 type AuthenticatedConnectionsSignatory interface {
@@ -19,8 +25,14 @@ type AuthenticatedConnectionsSignatory interface {
 }
 
 func NewLocalAuthenticatedConnectionsSignatory(originCallsign string, privateKeyBase64Strings []string) AuthenticatedConnectionsSignatory {
+	var dnsResolver adscertcounterparty.DNSResolver
+	if *useFakeKeyGeneratingDNS {
+		dnsResolver = NewFakeKeyGeneratingDnsResolver()
+	} else {
+		dnsResolver = adscertcounterparty.NewRealDnsResolver()
+	}
 	return &localAuthenticatedConnectionsSignatory{
-		counterpartyManager: adscertcounterparty.NewCounterpartyManager(NewFakeKeyGeneratingDnsResolver(), privateKeyBase64Strings),
+		counterpartyManager: adscertcounterparty.NewCounterpartyManager(dnsResolver, privateKeyBase64Strings),
 		originCallsign:      originCallsign,
 	}
 }
@@ -100,7 +112,7 @@ func (s *localAuthenticatedConnectionsSignatory) VerifySigningPackage(request *A
 	// Validate invocation hostname matches request
 	if acs.GetAttributeInvoking() != request.RequestInfo.InvocationHostname {
 		// TODO: Unrelated signature error
-		glog.Info("unrelated signature %s versus %s", acs.GetAttributeInvoking(), request.RequestInfo.InvocationHostname)
+		glog.Infof("unrelated signature %s versus %s", acs.GetAttributeInvoking(), request.RequestInfo.InvocationHostname)
 		return response, fmt.Errorf("unrelated signature %s versus %s", acs.GetAttributeInvoking(), request.RequestInfo.InvocationHostname)
 	}
 

@@ -9,21 +9,7 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
-// // x25519PublicKey provides a lightweight, typed wrapper around key material to
-// // permit pass-by-value.
-// type x25519PublicKey struct {
-// 	publicKey     [32]byte
-// 	keyIdentifier string
-// }
-
-// // x25519PrivateKey provides a lightweight, typed wrapper around key material to
-// // permit pass-by-value.
-// type x25519PrivateKey struct {
-// 	privateKey [32]byte
-// 	keyIdentifier string
-// }
-
-// x25519SharedSecret provides a lightweight, typed wrapper around computed
+// x25519Key provides a lightweight, typed wrapper around computed
 // shared secret material to permit pass-by-value.
 type x25519Key struct {
 	keyBytes   [32]byte
@@ -50,8 +36,8 @@ type keyTupleAlias struct {
 	theirKeyAlias keyAlias
 }
 
-func newKeyTupleAlias(myKeyId keyAlias, theirKeyId keyAlias) keyTupleAlias {
-	return keyTupleAlias{myKeyAlias: myKeyId, theirKeyAlias: theirKeyId}
+func newKeyTupleAlias(myKeyID keyAlias, theirKeyID keyAlias) keyTupleAlias {
+	return keyTupleAlias{myKeyAlias: myKeyID, theirKeyAlias: theirKeyID}
 }
 
 type keyMap map[keyAlias]*x25519Key
@@ -89,7 +75,7 @@ func calculateSharedSecret(myPrivate *x25519Key, theirPublic *x25519Key) (*x2551
 	return result, err
 }
 
-func generateKeyPair() (string, string, error) {
+func GenerateKeyPair() (string, string, error) {
 	privateBytes := &[32]byte{}
 	if n, err := rand.Read(privateBytes[:]); err != nil {
 		return "", "", err
@@ -100,7 +86,7 @@ func generateKeyPair() (string, string, error) {
 	publicBytes := &[32]byte{}
 	curve25519.ScalarBaseMult(publicBytes, privateBytes)
 
-	return formats.EncodeKeyBase64(privateBytes[:]), formats.EncodeKeyBase64(publicBytes[:]), nil
+	return formats.EncodeKeyBase64(publicBytes[:]), formats.EncodeKeyBase64(privateBytes[:]), nil
 }
 
 type keyReceiver interface {

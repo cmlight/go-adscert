@@ -193,17 +193,17 @@ func (cm *counterpartyManager) performUpdateSweep(ctx context.Context) {
 			glog.Infof("Trying to do an update for domain %s", domain)
 
 			start := time.Now()
-
-			records, err := cm.dnsResolver.LookupTXT(ctx, domain)
+			subdomain := "_delivery._adscert." + domain
+			records, err := cm.dnsResolver.LookupTXT(ctx, subdomain)
 			if err != nil {
-				glog.Warningf("Error looking up record for %s in %v: %v", domain, time.Now().Sub(start), err)
+				glog.Warningf("Error looking up record for %s in %v: %v", subdomain, time.Now().Sub(start), err)
 			} else {
-				glog.Infof("Found text record for %s in %v: %v", domain, time.Now().Sub(start), records)
+				glog.Infof("Found text record for %s in %v: %v", subdomain, time.Now().Sub(start), records)
 
 				// Assume one and only one TXT record
 				adsCertKeys, err := formats.DecodeAdsCertKeysRecord(records[0])
 				if err != nil {
-					glog.Warning("Error parsing ads.cert record for %s: %v", domain, err)
+					glog.Warningf("Error parsing ads.cert record for %s: %v", subdomain, err)
 				} else if len(adsCertKeys.PublicKeys) > 0 {
 					currentCounterpartyState.allPublicKeys = asKeyMap(*adsCertKeys)
 					currentCounterpartyState.currentPublicKey = keyAlias(adsCertKeys.PublicKeys[0].KeyAlias)
@@ -219,15 +219,10 @@ func (cm *counterpartyManager) performUpdateSweep(ctx context.Context) {
 					if currentCounterpartyState.allSharedSecrets[keyTupleAlias] == nil {
 						currentCounterpartyState.allSharedSecrets[keyTupleAlias], err = calculateSharedSecret(myKey, theirKey)
 					}
-
-					// if cm.currentPrivateKey == myKey.alias && currentCounterpartyState.currentPublicKey == theirKey.alias {
-					// 	currentCounterpartyState.currentSharedSecret = keyTupleAlias
-					// }
 				}
 			}
 
 			currentCounterpartyState.currentSharedSecret = newKeyTupleAlias(cm.currentPrivateKey, currentCounterpartyState.currentPublicKey)
-
 			currentCounterpartyState.lastUpdateTime = time.Now()
 			cm.update(domain, currentCounterpartyState)
 		} else {
